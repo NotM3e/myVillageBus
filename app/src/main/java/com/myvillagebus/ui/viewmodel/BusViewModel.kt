@@ -21,6 +21,18 @@ class BusViewModel(application: Application) : AndroidViewModel(application) {
     private val repository: BusScheduleRepository = app.repository
 
     private val preferencesManager: PreferencesManager = app.preferencesManager
+    private val _lastSyncVersion = MutableStateFlow<String?>(null)
+
+    val lastSyncVersion: StateFlow<String?> = _lastSyncVersion.asStateFlow()
+    private val _lastSyncTime = MutableStateFlow<String?>(null)
+    val lastSyncTime: StateFlow<String?> = _lastSyncTime.asStateFlow()
+    private val _hoursSinceLastSync = MutableStateFlow<Long>(Long.MAX_VALUE)
+    val hoursSinceLastSync: StateFlow<Long> = _hoursSinceLastSync.asStateFlow(
+
+    )
+    init {
+        refreshSyncInfo()
+    }
     val allSchedules: StateFlow<List<BusSchedule>> = repository.allSchedules
         .stateIn(
             scope = viewModelScope,
@@ -80,9 +92,10 @@ class BusViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteAllSchedules() {
         viewModelScope.launch {
             repository.deleteAllSchedules()
+            clearSyncInfo()
+            _syncStatus.value = "Usunięto wszystkie rozkłady"
         }
     }
-
     fun deleteSchedule(schedule: BusSchedule) {
         viewModelScope.launch {
             repository.deleteSchedule(schedule)
@@ -100,24 +113,21 @@ class BusViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Pobiera wersję ostatniej synchronizacji
+     * Odświeża informacje o synchronizacji z PreferencesManager
      */
-    fun getLastSyncVersion(): String? {
-        return preferencesManager.getLastSyncVersion()
+    fun refreshSyncInfo() {
+        _lastSyncVersion.value = preferencesManager.getLastSyncVersion()
+        _lastSyncTime.value = preferencesManager.getLastSyncTimeFormatted()
+        _hoursSinceLastSync.value = preferencesManager.getHoursSinceLastSync()
     }
 
     /**
-     * Pobiera sformatowany czas ostatniej synchronizacji
+     * Czyści informacje o synchronizacji (po usunięciu danych)
      */
-    fun getLastSyncTime(): String? {
-        return preferencesManager.getLastSyncTimeFormatted()
-    }
-
-    /**
-     * Sprawdza ile godzin minęło od ostatniej synchronizacji
-     */
-    fun getHoursSinceLastSync(): Long {
-        return preferencesManager.getHoursSinceLastSync()
+    private fun clearSyncInfo() {
+        _lastSyncVersion.value = null
+        _lastSyncTime.value = null
+        _hoursSinceLastSync.value = Long.MAX_VALUE
     }
 
     /**
@@ -145,6 +155,7 @@ class BusViewModel(application: Application) : AndroidViewModel(application) {
 
             result.onSuccess { message ->
                 _syncStatus.value = message
+                refreshSyncInfo()
             }
 
             result.onFailure { error ->

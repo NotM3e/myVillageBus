@@ -22,6 +22,11 @@ fun SettingsScreen(
     viewModel: BusViewModel,
     onBackClick: () -> Unit
 ) {
+    // Odśwież dane przy wejściu na ekran
+    LaunchedEffect(Unit) {
+        viewModel.refreshSyncInfo()
+    }
+
     val schedulesCount by viewModel.allSchedules.collectAsState()
     val syncStatus by viewModel.syncStatus.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
@@ -31,9 +36,9 @@ fun SettingsScreen(
 
     val configUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSUpEKaD5spMbQ0e_VVj2XI1pxlTbGz6QV5AEvD0HQIM-xDk1yzhWA3yo7zwPjJ8yq9anAJrixPn4WI/pub?gid=0&single=true&output=tsv"
 
-    val lastSyncVersion = remember { viewModel.getLastSyncVersion() }
-    val lastSyncTime = remember { viewModel.getLastSyncTime() }
-    val hoursSinceLastSync = remember { viewModel.getHoursSinceLastSync() }
+    val lastSyncVersion by viewModel.lastSyncVersion.collectAsState()
+    val lastSyncTime by viewModel.lastSyncTime.collectAsState()
+    val hoursSinceLastSync by viewModel.hoursSinceLastSync.collectAsState()
 
     Scaffold(
         topBar = {
@@ -111,7 +116,7 @@ fun SettingsScreen(
                         )
                     }
 
-                    if (lastSyncVersion != null) {
+                    lastSyncVersion?.let { version ->
                         HorizontalDivider()
 
                         Row(
@@ -120,21 +125,21 @@ fun SettingsScreen(
                         ) {
                             Text("Wersja danych:")
                             Text(
-                                text = lastSyncVersion,
+                                text = version,  // OK: zmienna lokalna
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.primary
                             )
                         }
                     }
 
-                    if (lastSyncTime != null) {
+                    lastSyncTime?.let { time ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text("Ostatnia synchronizacja:")
                             Text(
-                                text = lastSyncTime,
+                                text = time,  // OK: zmienna lokalna
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
@@ -190,7 +195,8 @@ fun SettingsScreen(
                 }
             }
 
-            if (lastSyncVersion != null) {
+            // Pokaż przycisk tylko gdy są dane w bazie I jest wersja
+            if (schedulesCount.isNotEmpty() && lastSyncVersion != null) {
                 OutlinedButton(
                     onClick = { showForceSyncDialog = true },
                     modifier = Modifier.fillMaxWidth(),
@@ -287,20 +293,59 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
-                    if (lastSyncVersion != null) {
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    // Pokaż sekcję synchronizacji tylko gdy są dane
+                    if (lastSyncVersion != null || lastSyncTime != null) {
+                        HorizontalDivider()
 
-                        Text(
-                            text = "Informacja o wersjonowaniu:",
-                            style = MaterialTheme.typography.titleSmall
-                        )
-                        Text(
-                            text = "Aplikacja automatycznie wykrywa czy dostępna jest nowsza wersja rozkładów. " +
-                                    "Jeśli dane są aktualne, synchronizacja nie pobiera ich ponownie. " +
-                                    "Możesz wymusić pobranie używając przycisku 'Wymuś ponowne pobranie'.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        lastSyncVersion?.let { version ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Wersja danych:")
+                                Text(
+                                    text = version,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+
+                        lastSyncTime?.let { time ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Ostatnia synchronizacja:")
+                                Text(
+                                    text = time,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+
+                            if (hoursSinceLastSync < Long.MAX_VALUE) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text("Czas od synchronizacji:")
+                                    Text(
+                                        text = when {
+                                            hoursSinceLastSync < 1 -> "Mniej niż godzinę temu"
+                                            hoursSinceLastSync < 24 -> "$hoursSinceLastSync godz. temu"
+                                            else -> "${hoursSinceLastSync / 24} dni temu"
+                                        },
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = when {
+                                            hoursSinceLastSync > 168 -> MaterialTheme.colorScheme.error
+                                            hoursSinceLastSync > 72 -> MaterialTheme.colorScheme.tertiary
+                                            else -> MaterialTheme.colorScheme.onPrimaryContainer
+                                        }
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
