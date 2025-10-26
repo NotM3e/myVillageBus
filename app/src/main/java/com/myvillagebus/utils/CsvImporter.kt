@@ -134,7 +134,11 @@ object CsvImporter {
 
             try {
                 val parts = splitLine(line, separator)
-                if (parts.size < 7) return@forEach
+
+                if (parts.size < 7) {
+                    Log.w("CsvImporter", "⚠️ Pominięto linię (za mało kolumn, expected ≥7, got ${parts.size}): $line")
+                    return@forEach
+                }
 
                 val lineDesignation = parts[0]
                 val designationDescription = parts[1].ifEmpty { null }
@@ -143,7 +147,7 @@ object CsvImporter {
                 val stopNameFromCsv = parts[4]
                 val direction = parts[5]
                 val daysString = parts[6]
-                val stopsString = parts.getOrNull(7) ?: ""
+                val stopsString = parts.getOrNull(7) ?: ""  // ← Opcjonalna kolumna
 
                 val stopName = if (stopNameFromCsv.isEmpty()) {
                     extractStartStop(busLine, direction)
@@ -153,6 +157,7 @@ object CsvImporter {
 
                 val operatingDays = parseDays(daysString)
 
+                // ✅ POPRAWKA: Używa stopsString do generowania przystanków
                 val stops = generateStopsFromRoute(
                     startStop = stopName,
                     endStop = direction,
@@ -160,6 +165,7 @@ object CsvImporter {
                     routeStops = stopsString
                 )
 
+                // ✅ POPRAWKA: Rozdziela wielokrotne oznaczenia (np. "A, B")
                 val designations = lineDesignation.split(",").map { it.trim() }
 
                 designations.forEach { singleDesignation ->
@@ -179,7 +185,7 @@ object CsvImporter {
                 }
 
             } catch (e: Exception) {
-                Log.e("CsvImporter", "Błąd parsowania linii: $line", e)
+                Log.e("CsvImporter", "❌ Błąd parsowania linii: $line", e)
             }
         }
 
@@ -213,9 +219,33 @@ object CsvImporter {
     ): List<BusStop> {
         val stops = mutableListOf<BusStop>()
 
+        // 1. Przystanek startowy
         stops.add(BusStop(startStop, departureTime, 0))
 
-        val arrivalTime = addMinutesToTime(departureTime, 20)
+        // 2. NOWE: Parsuj przystanki pośrednie z kolumny "stops"
+        if (routeStops.isNotBlank()) {
+            val intermediateStops = routeStops
+                .split(",", ";")  // Akceptuj przecinek lub średnik
+                .map { it.trim() }
+                .filter { it.isNotEmpty() && it != startStop && it != endStop }
+
+            // Dodaj przystanki z szacowanym czasem (co 5 minut)
+            intermediateStops.forEachIndexed { index, stopName ->
+                val estimatedTime = addMinutesToTime(departureTime, (index + 1) * 5)
+                stops.add(BusStop(stopName, estimatedTime, 0))
+            }
+        }
+
+        // 3. Przystanek końcowy
+        val totalMinutes = if (routeStops.isNotBlank()) {
+            // Oblicz czas na podstawie liczby przystanków (5 min/przystanek)
+            val intermediateCount = routeStops.split(",", ";").size
+            (intermediateCount + 1) * 5
+        } else {
+            20  // Domyślnie 20 minut jeśli brak przystanków pośrednich
+        }
+
+        val arrivalTime = addMinutesToTime(departureTime, totalMinutes)
         stops.add(BusStop(endStop, arrivalTime, 0))
 
         return stops

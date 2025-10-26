@@ -1,10 +1,13 @@
 package com.myvillagebus.ui.viewmodel
 
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.myvillagebus.BusScheduleApplication
 import com.myvillagebus.data.model.BusSchedule
 import com.myvillagebus.data.repository.BusScheduleRepository
+import com.myvillagebus.utils.NetworkUtils
+import com.myvillagebus.utils.PreferencesManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -12,9 +15,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-class BusViewModel(private val repository: BusScheduleRepository) : ViewModel() {
+class BusViewModel(application: Application) : AndroidViewModel(application) {
 
-    // Wszystkie rozkłady z bazy danych
+    private val app = getApplication<BusScheduleApplication>()
+    private val repository: BusScheduleRepository = app.repository
+
+    private val preferencesManager: PreferencesManager = app.preferencesManager
     val allSchedules: StateFlow<List<BusSchedule>> = repository.allSchedules
         .stateIn(
             scope = viewModelScope,
@@ -22,7 +28,6 @@ class BusViewModel(private val repository: BusScheduleRepository) : ViewModel() 
             initialValue = emptyList()
         )
 
-    // Wszyscy przewoźnicy
     val allCarriers: StateFlow<List<String>> = repository.allCarriers
         .stateIn(
             scope = viewModelScope,
@@ -30,7 +35,6 @@ class BusViewModel(private val repository: BusScheduleRepository) : ViewModel() 
             initialValue = emptyList()
         )
 
-    // Wszystkie oznaczenia
     val allDesignations: StateFlow<List<String>> = repository.allDesignations
         .stateIn(
             scope = viewModelScope,
@@ -38,11 +42,15 @@ class BusViewModel(private val repository: BusScheduleRepository) : ViewModel() 
             initialValue = emptyList()
         )
 
-    // Stan ładowania
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
-    // Inicjalizacja z przykładowymi danymi
+    private val _syncStatus = MutableStateFlow<String?>(null)
+    val syncStatus: StateFlow<String?> = _syncStatus.asStateFlow()
+
+    private val _isSyncing = MutableStateFlow(false)
+    val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
+
     fun initializeSampleData(schedules: List<BusSchedule>) {
         viewModelScope.launch {
             _isLoading.value = true
@@ -51,19 +59,16 @@ class BusViewModel(private val repository: BusScheduleRepository) : ViewModel() 
         }
     }
 
-    // Pobierz rozkład po ID
     suspend fun getScheduleById(id: Int): BusSchedule? {
         return repository.getScheduleById(id)
     }
 
-    // Wstaw rozkład
     fun insertSchedule(schedule: BusSchedule) {
         viewModelScope.launch {
             repository.insertSchedule(schedule)
         }
     }
 
-    // Wstaw wiele rozkładów (import)
     fun insertSchedules(schedules: List<BusSchedule>) {
         viewModelScope.launch {
             _isLoading.value = true
@@ -72,69 +77,81 @@ class BusViewModel(private val repository: BusScheduleRepository) : ViewModel() 
         }
     }
 
-    // Usuń wszystkie rozkłady
     fun deleteAllSchedules() {
         viewModelScope.launch {
             repository.deleteAllSchedules()
         }
     }
 
-    // Usuń rozkład
     fun deleteSchedule(schedule: BusSchedule) {
         viewModelScope.launch {
             repository.deleteSchedule(schedule)
         }
     }
 
-    // Aktualizuj rozkład
     fun updateSchedule(schedule: BusSchedule) {
         viewModelScope.launch {
             repository.updateSchedule(schedule)
         }
     }
 
-    // Pobierz liczbę rozkładów
     suspend fun getSchedulesCount(): Int {
         return repository.getSchedulesCount()
     }
 
-    // Stan synchronizacji
-    private val _syncStatus = MutableStateFlow<String?>(null)
-    val syncStatus: StateFlow<String?> = _syncStatus.asStateFlow()
+    /**
+     * Pobiera wersję ostatniej synchronizacji
+     */
+    fun getLastSyncVersion(): String? {
+        return preferencesManager.getLastSyncVersion()
+    }
 
-    private val _isSyncing = MutableStateFlow(false)
-    val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
+    /**
+     * Pobiera sformatowany czas ostatniej synchronizacji
+     */
+    fun getLastSyncTime(): String? {
+        return preferencesManager.getLastSyncTimeFormatted()
+    }
+
+    /**
+     * Sprawdza ile godzin minęło od ostatniej synchronizacji
+     */
+    fun getHoursSinceLastSync(): Long {
+        return preferencesManager.getHoursSinceLastSync()
+    }
 
     /**
      * Synchronizuje rozkłady z Google Sheets
+     *
+     * @param configUrl URL do arkusza Config
+     * @param forceSync Wymuś synchronizację nawet jeśli wersja się nie zmieniła
      */
-    fun syncWithGoogleSheets(configUrl: String) {
+    fun syncWithGoogleSheets(configUrl: String, forceSync: Boolean = false) {
         viewModelScope.launch {
             _isSyncing.value = true
+            _syncStatus.value = "Sprawdzanie połączenia..."
+
+            val context = getApplication<BusScheduleApplication>()
+
+            if (!NetworkUtils.isNetworkAvailable(context)) {
+                _syncStatus.value = "Brak połączenia z Internetem"
+                _isSyncing.value = false
+                return@launch
+            }
+
             _syncStatus.value = "Synchronizacja..."
 
-            val result = repository.syncWithGoogleSheets(configUrl, forceSync = true)
+            val result = repository.syncWithGoogleSheets(configUrl, forceSync)
 
             result.onSuccess { message ->
-                _syncStatus.value = "✅ $message"
+                _syncStatus.value = message
             }
 
             result.onFailure { error ->
-                _syncStatus.value = "❌ Błąd: ${error.message}"
+                _syncStatus.value = "Błąd: ${error.message}"
             }
 
             _isSyncing.value = false
         }
-    }
-}
-
-// Factory do tworzenia ViewModelu z Repository
-class BusViewModelFactory(private val repository: BusScheduleRepository) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(BusViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
-            return BusViewModel(repository) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class")
     }
 }

@@ -32,12 +32,14 @@ import com.myvillagebus.data.model.BusSchedule
 import java.text.SimpleDateFormat
 import java.util.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material.icons.filled.Settings
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScheduleListScreen(
     schedules: List<BusSchedule>,
-    onScheduleClick: (BusSchedule) -> Unit
+    onScheduleClick: (BusSchedule) -> Unit,
+    onSettingsClick: () -> Unit  // ← DODAJ PARAMETR
 ) {
     // Stany filtrów
     var selectedCarrier by rememberSaveable { mutableStateOf<String?>(null) }
@@ -110,9 +112,18 @@ fun ScheduleListScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Rozkład jazdy") },
+                actions = {  // ← DODAJ ACTIONS
+                    IconButton(onClick = onSettingsClick) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Ustawienia"
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary
+                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
+                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary
                 )
             )
         }
