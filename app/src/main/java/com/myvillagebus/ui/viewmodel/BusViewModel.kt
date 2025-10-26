@@ -97,6 +97,35 @@ class BusViewModel(private val repository: BusScheduleRepository) : ViewModel() 
     suspend fun getSchedulesCount(): Int {
         return repository.getSchedulesCount()
     }
+
+    // Stan synchronizacji
+    private val _syncStatus = MutableStateFlow<String?>(null)
+    val syncStatus: StateFlow<String?> = _syncStatus.asStateFlow()
+
+    private val _isSyncing = MutableStateFlow(false)
+    val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
+
+    /**
+     * Synchronizuje rozkłady z Google Sheets
+     */
+    fun syncWithGoogleSheets(configUrl: String) {
+        viewModelScope.launch {
+            _isSyncing.value = true
+            _syncStatus.value = "Synchronizacja..."
+
+            val result = repository.syncWithGoogleSheets(configUrl, forceSync = true)
+
+            result.onSuccess { message ->
+                _syncStatus.value = "✅ $message"
+            }
+
+            result.onFailure { error ->
+                _syncStatus.value = "❌ Błąd: ${error.message}"
+            }
+
+            _isSyncing.value = false
+        }
+    }
 }
 
 // Factory do tworzenia ViewModelu z Repository

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Pozwól na HTTPS dla wszystkich domen -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- Wyjątek dla Google Sheets (docs.google.com) -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">docs.google.com</domain>
+        <domain includeSubdomains="true">sheets.google.com</domain>
+    </domain-config>
+</network-security-config>

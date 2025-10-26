@@ -1,6 +1,7 @@
 package com.myvillagebus
 
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -11,9 +12,17 @@ import com.myvillagebus.ui.viewmodel.BusViewModel
 import com.myvillagebus.ui.viewmodel.BusViewModelFactory
 import com.myvillagebus.data.model.BusSchedule
 import com.myvillagebus.data.model.BusStop
-import java.time.DayOfWeek  // ← DODAJ TEN IMPORT
+import com.myvillagebus.utils.CsvImporter
+import java.time.DayOfWeek
 
 class MainActivity : ComponentActivity() {
+
+    private fun testSync() {
+        // URL do Twojego arkusza Config (zastąp GID prawdziwym)
+        val configUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSUpEKaD5spMbQ0e_VVj2XI1pxlTbGz6QV5AEvD0HQIM-xDk1yzhWA3yo7zwPjJ8yq9anAJrixPn4WI/pub?gid=0&single=true&output=tsv"
+
+        viewModel.syncWithGoogleSheets(configUrl)
+    }
 
     // Inicjalizacja ViewModelu z Repository
     private val viewModel: BusViewModel by viewModels {
@@ -25,6 +34,8 @@ class MainActivity : ComponentActivity() {
 
         // Inicjalizacja przykładowych danych (tylko przy pierwszym uruchomieniu)
         viewModel.initializeSampleData(getSampleSchedules())
+
+         testSync()  // Odkomentuj aby przetestować synchronizację
 
         setContent {
             BusScheduleTheme {
