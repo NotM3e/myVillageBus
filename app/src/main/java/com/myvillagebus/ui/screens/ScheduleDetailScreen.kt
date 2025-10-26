@@ -178,7 +178,7 @@ fun ScheduleDetailScreen(
 
                     // Wyświetl wszystkie dni jako chipy
                     FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         DayOfWeek.values().forEach { day ->

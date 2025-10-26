@@ -31,7 +31,7 @@ import androidx.compose.ui.unit.dp
 import com.myvillagebus.data.model.BusSchedule
 import java.text.SimpleDateFormat
 import java.util.*
-
+import androidx.compose.runtime.saveable.rememberSaveable
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,16 +40,13 @@ fun ScheduleListScreen(
     onScheduleClick: (BusSchedule) -> Unit
 ) {
     // Stany filtrów
-    var selectedCarrier by remember { mutableStateOf<String?>(null) }
-    var selectedDesignation by remember { mutableStateOf<String?>(null) }
-    var selectedDirection by remember { mutableStateOf<String?>(null) }
-    var selectedStop by remember { mutableStateOf<String?>(null) }
-    var searchQuery by remember { mutableStateOf("") }
-
-    // ← NOWE: Filtr "tylko dziś"
-    var showOnlyToday by remember { mutableStateOf(false) }
-
-    var filtersExpanded by remember { mutableStateOf(false) }
+    var selectedCarrier by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedDesignation by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedDirection by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedStop by rememberSaveable { mutableStateOf<String?>(null) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var showOnlyToday by rememberSaveable { mutableStateOf(false) }
+    var filtersExpanded by rememberSaveable { mutableStateOf(false) }
 
     // Pobierz unikalnych przewoźników
     val carriers = remember(schedules) {
@@ -101,7 +98,7 @@ fun ScheduleListScreen(
             // ← NOWE: Filtr dni
             val matchesToday = !showOnlyToday || schedule.operatesToday()
 
-            matchesCarrier && matchesDesignation && matchesDirection && matchesStop
+            matchesCarrier && matchesDesignation && matchesDirection && matchesStop && matchesToday
         }.sortedBy { it.departureTime }
     }
 
