@@ -33,6 +33,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.ui.text.style.TextAlign
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -257,7 +258,7 @@ fun ScheduleListScreen(
 
             Divider(color = MaterialTheme.colorScheme.outlineVariant)
 
-            // Lista rozkładów
+// Lista rozkładów
             if (filteredSchedules.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -265,23 +266,50 @@ fun ScheduleListScreen(
                 ) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier.padding(32.dp)
                     ) {
                         Text(
                             text = "🚌",
                             style = MaterialTheme.typography.displayLarge
                         )
                         Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "Brak odjazdów",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = "Spróbuj zmienić filtry",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+
+                        // Sprawdź czy baza jest w ogóle pusta
+                        if (schedules.isEmpty()) {
+                            // Brak danych w bazie
+                            Text(
+                                text = "Brak rozkładów",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Pobierz rozkłady w Ustawieniach",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Button(onClick = onSettingsClick) {
+                                Icon(Icons.Default.Settings, contentDescription = null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Przejdź do Ustawień")
+                            }
+                        } else {
+                            // Są dane, ale filtry je ukrywają
+                            Text(
+                                text = "Brak odjazdów",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Spróbuj zmienić filtry",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             } else {

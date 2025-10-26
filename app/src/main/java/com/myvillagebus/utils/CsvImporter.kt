@@ -136,7 +136,7 @@ object CsvImporter {
                 val parts = splitLine(line, separator)
 
                 if (parts.size < 7) {
-                    Log.w("CsvImporter", "⚠️ Pominięto linię (za mało kolumn, expected ≥7, got ${parts.size}): $line")
+                    Log.w("CsvImporter", "Pominięto linię (za mało kolumn, expected ≥7, got ${parts.size}): $line")
                     return@forEach
                 }
 
@@ -147,7 +147,7 @@ object CsvImporter {
                 val stopNameFromCsv = parts[4]
                 val direction = parts[5]
                 val daysString = parts[6]
-                val stopsString = parts.getOrNull(7) ?: ""  // ← Opcjonalna kolumna
+                val stopsString = parts.getOrNull(7) ?: ""
 
                 val stopName = if (stopNameFromCsv.isEmpty()) {
                     extractStartStop(busLine, direction)
@@ -157,7 +157,6 @@ object CsvImporter {
 
                 val operatingDays = parseDays(daysString)
 
-                // ✅ POPRAWKA: Używa stopsString do generowania przystanków
                 val stops = generateStopsFromRoute(
                     startStop = stopName,
                     endStop = direction,
@@ -165,27 +164,23 @@ object CsvImporter {
                     routeStops = stopsString
                 )
 
-                // ✅ POPRAWKA: Rozdziela wielokrotne oznaczenia (np. "A, B")
-                val designations = lineDesignation.split(",").map { it.trim() }
-
-                designations.forEach { singleDesignation ->
-                    schedules.add(
-                        BusSchedule(
-                            carrierName = carrierName,
-                            lineDesignation = singleDesignation.ifEmpty { null },
-                            designationDescription = designationDescription,
-                            busLine = busLine,
-                            departureTime = departureTime,
-                            stopName = stopName,
-                            direction = direction,
-                            operatingDays = operatingDays,
-                            stops = stops
-                        )
+                // ZMIANA: Nie rozdzielaj oznaczeń - dodaj jeden rozkład
+                schedules.add(
+                    BusSchedule(
+                        carrierName = carrierName,
+                        lineDesignation = lineDesignation.ifEmpty { null },
+                        designationDescription = designationDescription,
+                        busLine = busLine,
+                        departureTime = departureTime,
+                        stopName = stopName,
+                        direction = direction,
+                        operatingDays = operatingDays,
+                        stops = stops
                     )
-                }
+                )
 
             } catch (e: Exception) {
-                Log.e("CsvImporter", "❌ Błąd parsowania linii: $line", e)
+                Log.e("CsvImporter", "Błąd parsowania linii: $line", e)
             }
         }
 
