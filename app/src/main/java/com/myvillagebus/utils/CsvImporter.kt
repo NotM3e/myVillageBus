@@ -212,40 +212,24 @@ object CsvImporter {
         departureTime: String,
         routeStops: String
     ): List<BusStop> {
-        val stops = mutableListOf<BusStop>()
+        // Jeśli kolumna "stops" jest pusta, zwróć pustą listę
+        if (routeStops.isBlank()) {
+            return emptyList()
+        }
 
-        // 1. Przystanek startowy
-        stops.add(BusStop(startStop, departureTime, 0))
-
-        // 2. NOWE: Parsuj przystanki pośrednie z kolumny "stops"
-        if (routeStops.isNotBlank()) {
-            val intermediateStops = routeStops
-                .split(",", ";")  // Akceptuj przecinek lub średnik
-                .map { it.trim() }
-                .filter { it.isNotEmpty() && it != startStop && it != endStop }
-
-            // Dodaj przystanki z szacowanym czasem (co 5 minut)
-            intermediateStops.forEachIndexed { index, stopName ->
-                val estimatedTime = addMinutesToTime(departureTime, (index + 1) * 5)
-                stops.add(BusStop(stopName, estimatedTime, 0))
+        // Parsuj przystanki z CSV
+        return routeStops
+            .split(",", ";")
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .map { stopName ->
+                BusStop(
+                    stopName = stopName,
+                    arrivalTime = "",
+                    delayMinutes = 0
+                )
             }
-        }
-
-        // 3. Przystanek końcowy
-        val totalMinutes = if (routeStops.isNotBlank()) {
-            // Oblicz czas na podstawie liczby przystanków (5 min/przystanek)
-            val intermediateCount = routeStops.split(",", ";").size
-            (intermediateCount + 1) * 5
-        } else {
-            20  // Domyślnie 20 minut jeśli brak przystanków pośrednich
-        }
-
-        val arrivalTime = addMinutesToTime(departureTime, totalMinutes)
-        stops.add(BusStop(endStop, arrivalTime, 0))
-
-        return stops
     }
-
     private fun addMinutesToTime(time: String, minutes: Int): String {
         val parts = time.split(":").map { it.toIntOrNull() ?: 0 }
         var hour = parts[0]

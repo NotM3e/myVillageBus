@@ -261,7 +261,8 @@ fun ScheduleDetailScreen(
                     BusStopItem(
                         stop = stop,
                         isFirst = index == 0,
-                        isLast = index == schedule.stops.lastIndex
+                        isLast = index == schedule.stops.lastIndex,
+                        departureTime = if (index == 0) schedule.departureTime else null  // DODAJ
                     )
                 }
             }
@@ -273,7 +274,8 @@ fun ScheduleDetailScreen(
 fun BusStopItem(
     stop: BusStop,
     isFirst: Boolean,
-    isLast: Boolean
+    isLast: Boolean,
+    departureTime: String? = null
 ) {
     Row(
         modifier = Modifier
@@ -359,29 +361,31 @@ fun BusStopItem(
                     }
                 }
 
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = stop.arrivalTime,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-
-                    // Szacowany czas przyjazdu
-                    val estimatedMinutes = calculateMinutesUntil(stop.arrivalTime)
-                    if (estimatedMinutes != null && estimatedMinutes >= 0 && estimatedMinutes < 120) {
+                if (isFirst && departureTime != null) {
+                    Column(horizontalAlignment = Alignment.End) {
                         Text(
-                            text = when {
-                                estimatedMinutes == 0 -> "Teraz"
-                                estimatedMinutes < 60 -> "za $estimatedMinutes min"
-                                else -> "za ${estimatedMinutes / 60}h ${estimatedMinutes % 60}min"
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = when {
-                                estimatedMinutes <= 3 -> MaterialTheme.colorScheme.error
-                                estimatedMinutes <= 10 -> MaterialTheme.colorScheme.tertiary
-                                else -> MaterialTheme.colorScheme.onSurfaceVariant
-                            }
+                            text = departureTime,  // ← Z rozkładu
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.primary
                         )
+
+                        // Licznik "za X min"
+                        val estimatedMinutes = calculateMinutesUntil(departureTime)
+                        if (estimatedMinutes != null && estimatedMinutes >= 0 && estimatedMinutes < 120) {
+                            Text(
+                                text = when {
+                                    estimatedMinutes == 0 -> "Teraz"
+                                    estimatedMinutes < 60 -> "za $estimatedMinutes min"
+                                    else -> "za ${estimatedMinutes / 60}h ${estimatedMinutes % 60}min"
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = when {
+                                    estimatedMinutes <= 3 -> MaterialTheme.colorScheme.error
+                                    estimatedMinutes <= 10 -> MaterialTheme.colorScheme.tertiary
+                                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
+                        }
                     }
                 }
             }

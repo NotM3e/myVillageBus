@@ -34,6 +34,8 @@ import java.util.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -93,12 +95,15 @@ fun ScheduleListScreen(
     val filteredSchedules = remember(schedules, selectedCarrier, selectedDesignation, selectedDirection, selectedStop, showOnlyToday) {
         schedules.filter { schedule ->
             val matchesCarrier = selectedCarrier == null || schedule.carrierName == selectedCarrier
-            val matchesDesignation = selectedDesignation == null || schedule.lineDesignation == selectedDesignation
+
+            // ZMIENIONE: Sprawdź czy oznaczenie zawiera wybraną wartość
+            val matchesDesignation = selectedDesignation == null ||
+                    schedule.lineDesignation?.split(",")?.map { it.trim() }?.contains(selectedDesignation) == true
+
             val matchesDirection = selectedDirection == null || schedule.direction == selectedDirection
             val matchesStop = selectedStop == null ||
                     schedule.stops.any { it.stopName == selectedStop }
 
-            // ← NOWE: Filtr dni
             val matchesToday = !showOnlyToday || schedule.operatesToday()
 
             matchesCarrier && matchesDesignation && matchesDirection && matchesStop && matchesToday
@@ -579,7 +584,7 @@ fun FilterSection(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text("📅")
-                        Text("Tylko dziś")
+                        Text("Kursujące dziś")
                     }
                 },
                 colors = FilterChipDefaults.filterChipColors(
@@ -634,7 +639,7 @@ fun FilterSection(
             }
         }
 
-        // ← NOWE: Filtry oznaczeń linii
+        // Filtry oznaczeń linii
         if (designations.isNotEmpty()) {
             Text(
                 text = "Oznaczenie linii:",
@@ -643,11 +648,19 @@ fun FilterSection(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
             )
 
+            // NOWE: Rozbij wielokrotne oznaczenia i usuń duplikaty
+            val expandedDesignations = remember(designations) {
+                designations
+                    .flatMap { it.split(",").map { part -> part.trim() } }
+                    .distinct()
+                    .sorted()
+            }
+
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(designations) { designation ->
+                items(expandedDesignations) { designation ->
                     FilterChip(
                         selected = selectedDesignation == designation,
                         onClick = { onDesignationSelected(designation) },
@@ -785,6 +798,7 @@ fun FilterSection(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun BusScheduleItem(
     schedule: BusSchedule,
@@ -832,16 +846,26 @@ fun BusScheduleItem(
                     )
 
                     schedule.lineDesignation?.let { designation ->
-                        Surface(
-                            shape = MaterialTheme.shapes.small,
-                            color = getDesignationColor(designation)
+                        // Rozdziel po przecinku i wyświetl jako osobne chipy
+                        val designations = designation.split(",").map { it.trim() }
+
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Text(
-                                text = designation,
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                            )
+                            designations.forEach { singleDesignation ->
+                                Surface(
+                                    shape = MaterialTheme.shapes.small,
+                                    color = getDesignationColor(singleDesignation)
+                                ) {
+                                    Text(
+                                        text = singleDesignation,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onPrimary,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -926,7 +950,7 @@ fun BusScheduleItem(
                                 style = MaterialTheme.typography.bodySmall
                             )
                             Text(
-                                text = "$highlightedStop o ${it.arrivalTime}",
+                                text = highlightedStop,  // ZMIENIONE: bez czasu
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -979,18 +1003,36 @@ fun BusScheduleItem(
 // ← NOWA FUNKCJA: Kolory dla różnych oznaczeń
 @Composable
 fun getDesignationColor(designation: String): androidx.compose.ui.graphics.Color {
-    return when {
+    // Specjalne przypadki
+    when {
         designation.contains("Express", ignoreCase = true) ->
-            MaterialTheme.colorScheme.tertiary
-        designation.contains("N", ignoreCase = true) || designation.contains("Nocny", ignoreCase = true) ->
-            androidx.compose.ui.graphics.Color(0xFF1565C0) // Ciemny niebieski
-        designation.matches(Regex("[A-Z]")) ->
-            MaterialTheme.colorScheme.primary
-        designation.matches(Regex("\\d+")) ->
-            MaterialTheme.colorScheme.secondary
-        else ->
-            MaterialTheme.colorScheme.primary
+            return MaterialTheme.colorScheme.tertiary
+        designation.contains("Nocny", ignoreCase = true) ->
+            return androidx.compose.ui.graphics.Color(0xFF1565C0)
     }
+
+    // Generuj kolor na podstawie hash'a nazwy
+    val hash = designation.hashCode()
+    val hue = (hash % 360).toFloat().let { if (it < 0) it + 360 else it }
+
+    // Paleta kolorów Material Design
+    val colors = listOf(
+        androidx.compose.ui.graphics.Color(0xFF1976D2), // Niebieski
+        androidx.compose.ui.graphics.Color(0xFF388E3C), // Zielony
+        androidx.compose.ui.graphics.Color(0xFFD32F2F), // Czerwony
+        androidx.compose.ui.graphics.Color(0xFF7B1FA2), // Fioletowy
+        androidx.compose.ui.graphics.Color(0xFFF57C00), // Pomarańczowy
+        androidx.compose.ui.graphics.Color(0xFF0097A7), // Cyjan
+        androidx.compose.ui.graphics.Color(0xFFC2185B), // Różowy
+        androidx.compose.ui.graphics.Color(0xFF5D4037), // Brązowy
+        androidx.compose.ui.graphics.Color(0xFF455A64), // Niebieski-szary
+        androidx.compose.ui.graphics.Color(0xFF689F38), // Jasnozielony
+        androidx.compose.ui.graphics.Color(0xFFE64A19), // Głęboka pomarańcz
+        androidx.compose.ui.graphics.Color(0xFF512DA8), // Głęboki fiolet
+    )
+
+    // Wybierz kolor na podstawie hash'a
+    return colors[hash.mod(colors.size)]
 }
 
 // Funkcja obliczająca minuty do odjazdu

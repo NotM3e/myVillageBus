@@ -15,6 +15,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.myvillagebus.ui.viewmodel.BusViewModel
+import android.content.pm.PackageManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.clickable
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.filled.ArrowForward
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -25,6 +32,16 @@ fun SettingsScreen(
     // Odśwież dane przy wejściu na ekran
     LaunchedEffect(Unit) {
         viewModel.refreshSyncInfo()
+    }
+    // NOWE: Pobierz wersję aplikacji
+    val context = LocalContext.current
+    val appVersion = remember {
+        try {
+            val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+            packageInfo.versionName
+        } catch (e: PackageManager.NameNotFoundException) {
+            "Unknown"
+        }
     }
 
     val schedulesCount by viewModel.allSchedules.collectAsState()
@@ -292,61 +309,163 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+            }
 
-                    // Pokaż sekcję synchronizacji tylko gdy są dane
-                    if (lastSyncVersion != null || lastSyncTime != null) {
-                        HorizontalDivider()
+            HorizontalDivider()
 
-                        lastSyncVersion?.let { version ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("Wersja danych:")
+            // NOWE: Karta Credits
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Nagłówek
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Info,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "O aplikacji",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    }
+
+                    HorizontalDivider()
+
+                    // Wersja aplikacji
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Wersja:",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            text = appVersion,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    HorizontalDivider()
+
+                    // Opis projektu
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "💡 O projekcie",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                        Text(
+                            text = "Amatorski projekt stworzony w celu rozwijania umiejętności programowania " +
+                                    "i jednocześnie pomagający załapać się na autobus.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            lineHeight = MaterialTheme.typography.bodySmall.lineHeight * 1.4f
+                        )
+                    }
+
+                    HorizontalDivider()
+
+                    // Link do strony
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                val intent = Intent(
+                                    Intent.ACTION_VIEW,
+                                    Uri.parse("https://github.com/NotM3e/myVillageBus")
+                                )
+                                context.startActivity(intent)
+                            },
+                        shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.padding(12.dp)
+                        ) {
+                            Column {
                                 Text(
-                                    text = version,
-                                    style = MaterialTheme.typography.titleMedium,
+                                    text = "🔗 GitHub",
+                                    style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.primary
                                 )
-                            }
-                        }
-
-                        lastSyncTime?.let { time ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("Ostatnia synchronizacja:")
                                 Text(
-                                    text = time,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    text = "github.com/NotM3e/myVillageBus",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-
-                            if (hoursSinceLastSync < Long.MAX_VALUE) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text("Czas od synchronizacji:")
-                                    Text(
-                                        text = when {
-                                            hoursSinceLastSync < 1 -> "Mniej niż godzinę temu"
-                                            hoursSinceLastSync < 24 -> "$hoursSinceLastSync godz. temu"
-                                            else -> "${hoursSinceLastSync / 24} dni temu"
-                                        },
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = when {
-                                            hoursSinceLastSync > 168 -> MaterialTheme.colorScheme.error
-                                            hoursSinceLastSync > 72 -> MaterialTheme.colorScheme.tertiary
-                                            else -> MaterialTheme.colorScheme.onPrimaryContainer
-                                        }
-                                    )
-                                }
-                            }
+                            Icon(
+                                imageVector = Icons.Default.ArrowForward,
+                                contentDescription = "Otwórz stronę",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
                         }
                     }
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                val intent = Intent(
+                                    Intent.ACTION_VIEW,
+                                    Uri.parse("https://twojastrona.pl")
+                                )
+                                context.startActivity(intent)
+                            },
+                        shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.padding(12.dp)
+                        ) {
+                            Column {
+                                Text(
+                                    text = "🌐 Odwiedź moją stronę",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = "twojastrona.pl",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.Default.ArrowForward,
+                                contentDescription = "Otwórz stronę",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+
+                    HorizontalDivider()
+
+                    // Copyright
+                    Text(
+                        text = "© 2025 - Projekt niekomercyjny",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+                    )
                 }
             }
         }
