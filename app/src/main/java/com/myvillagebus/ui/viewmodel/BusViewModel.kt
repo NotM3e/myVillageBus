@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.myvillagebus.BusScheduleApplication
 import com.myvillagebus.data.model.BusSchedule
 import com.myvillagebus.data.repository.BusScheduleRepository
+import com.myvillagebus.utils.CarrierVersionManager
 import com.myvillagebus.utils.NetworkUtils
 import com.myvillagebus.utils.PreferencesManager
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,6 +22,7 @@ class BusViewModel(application: Application) : AndroidViewModel(application) {
     private val repository: BusScheduleRepository = app.repository
 
     private val preferencesManager: PreferencesManager = app.preferencesManager
+    private val carrierVersionManager: CarrierVersionManager = app.carrierVersionManager
     private val _lastSyncVersion = MutableStateFlow<String?>(null)
 
     val lastSyncVersion: StateFlow<String?> = _lastSyncVersion.asStateFlow()
@@ -92,10 +94,15 @@ class BusViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteAllSchedules() {
         viewModelScope.launch {
             repository.deleteAllSchedules()
+
+            val app = getApplication<BusScheduleApplication>()
+            app.carrierVersionManager.clearAllVersions()
+
             clearSyncInfo()
             _syncStatus.value = "Usunięto wszystkie rozkłady"
         }
     }
+
     fun deleteSchedule(schedule: BusSchedule) {
         viewModelScope.launch {
             repository.deleteSchedule(schedule)

@@ -22,6 +22,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.filled.ArrowForward
+import com.myvillagebus.BusScheduleApplication
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -149,6 +150,42 @@ fun SettingsScreen(
                         }
                     }
 
+                    // W Card "Informacje", po "Wersja danych":
+                    val carrierVersions = remember {
+                        val app = context.applicationContext as BusScheduleApplication
+                        app.carrierVersionManager.getAllVersions()
+                    }
+
+                    if (carrierVersions.isNotEmpty()) {
+                        HorizontalDivider()
+
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                text = "Wersje przewoźników:",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+
+                            carrierVersions.forEach { (carrier, version) ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = carrier,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                    Text(
+                                        text = "v$version",  // ZMIENIONE: Dodano "v" przed liczbą
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     lastSyncTime?.let { time ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -226,14 +263,23 @@ fun SettingsScreen(
             }
 
             syncStatus?.let { status ->
+                val isError = status.contains("Błąd", ignoreCase = true) ||
+                        status.contains("Brak połączenia", ignoreCase = true)
+
+                val isSuccess = status.contains("Zsynchronizowano", ignoreCase = true) ||
+                        status.contains("Wszystkie dane są aktualne", ignoreCase = true)
+
+                val isInProgress = status.contains("Synchronizacja...", ignoreCase = true) ||
+                        status.contains("Sprawdzanie", ignoreCase = true)
+
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
                         containerColor = when {
-                            status.contains("Zsynchronizowano") -> MaterialTheme.colorScheme.primaryContainer
-                            status.contains("Dane są już aktualne") -> MaterialTheme.colorScheme.secondaryContainer
-                            status.contains("Synchronizacja...") || status.contains("Sprawdzanie") -> MaterialTheme.colorScheme.tertiaryContainer
-                            else -> MaterialTheme.colorScheme.errorContainer
+                            isSuccess -> MaterialTheme.colorScheme.primaryContainer
+                            isInProgress -> MaterialTheme.colorScheme.tertiaryContainer
+                            isError -> MaterialTheme.colorScheme.errorContainer
+                            else -> MaterialTheme.colorScheme.secondaryContainer  // Neutralny kolor
                         }
                     )
                 ) {
@@ -243,17 +289,17 @@ fun SettingsScreen(
                     ) {
                         Text(
                             text = when {
-                                status.contains("Zsynchronizowano") -> "Sukces"
-                                status.contains("Dane są już aktualne") -> "Informacja"
-                                status.contains("Synchronizacja...") || status.contains("Sprawdzanie") -> "Trwa synchronizacja..."
-                                else -> "Błąd"
+                                isSuccess -> "Sukces"
+                                isInProgress -> "Trwa synchronizacja..."
+                                isError -> "Błąd"
+                                else -> "Informacja"
                             },
                             style = MaterialTheme.typography.titleMedium,
                             color = when {
-                                status.contains("Zsynchronizowano") -> MaterialTheme.colorScheme.onPrimaryContainer
-                                status.contains("Dane są już aktualne") -> MaterialTheme.colorScheme.onSecondaryContainer
-                                status.contains("Synchronizacja...") || status.contains("Sprawdzanie") -> MaterialTheme.colorScheme.onTertiaryContainer
-                                else -> MaterialTheme.colorScheme.onErrorContainer
+                                isSuccess -> MaterialTheme.colorScheme.onPrimaryContainer
+                                isInProgress -> MaterialTheme.colorScheme.onTertiaryContainer
+                                isError -> MaterialTheme.colorScheme.onErrorContainer
+                                else -> MaterialTheme.colorScheme.onSecondaryContainer
                             }
                         )
 
@@ -261,10 +307,10 @@ fun SettingsScreen(
                             text = status,
                             style = MaterialTheme.typography.bodyMedium,
                             color = when {
-                                status.contains("Zsynchronizowano") -> MaterialTheme.colorScheme.onPrimaryContainer
-                                status.contains("Dane są już aktualne") -> MaterialTheme.colorScheme.onSecondaryContainer
-                                status.contains("Synchronizacja...") || status.contains("Sprawdzanie") -> MaterialTheme.colorScheme.onTertiaryContainer
-                                else -> MaterialTheme.colorScheme.onErrorContainer
+                                isSuccess -> MaterialTheme.colorScheme.onPrimaryContainer
+                                isInProgress -> MaterialTheme.colorScheme.onTertiaryContainer
+                                isError -> MaterialTheme.colorScheme.onErrorContainer
+                                else -> MaterialTheme.colorScheme.onSecondaryContainer
                             }
                         )
                     }

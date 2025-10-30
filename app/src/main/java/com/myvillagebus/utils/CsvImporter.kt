@@ -86,30 +86,32 @@ object CsvImporter {
 
             try {
                 val parts = splitLine(line, separator)
-                if (parts.size < 5) return@forEach
+                if (parts.size < 4) return@forEach  // Minimum: nazwa, gid, active, version
 
                 val carrierName = parts[0]
                 val gid = parts[1]
-                val color = parts.getOrNull(2)?.ifEmpty { null }
-                val icon = parts.getOrNull(3)?.ifEmpty { null }
-                val activeString = parts[4]
-                val description = parts.getOrNull(5)?.ifEmpty { null }
+                val activeString = parts[2]
+                val versionString = parts.getOrNull(3)?.trim()
+                val description = parts.getOrNull(4)?.ifEmpty { null }
 
                 val active = when (activeString.uppercase()) {
                     "TRUE", "1", "YES", "TAK" -> true
                     else -> false
                 }
 
+                val version = versionString?.toIntOrNull()
+
                 carriers.add(
                     CarrierInfo(
                         carrierName = carrierName,
                         gid = gid,
-                        color = color,
-                        icon = icon,
                         active = active,
+                        version = version,
                         description = description
                     )
                 )
+
+                Log.d("CsvImporter", "Przewoźnik: $carrierName, wersja: $version, aktywny: $active")
 
             } catch (e: Exception) {
                 Log.e("CsvImporter", "Błąd parsowania linii Carriers: $line", e)
@@ -212,24 +214,43 @@ object CsvImporter {
         departureTime: String,
         routeStops: String
     ): List<BusStop> {
-        // Jeśli kolumna "stops" jest pusta, zwróć pustą listę
         if (routeStops.isBlank()) {
             return emptyList()
         }
 
-        // Parsuj przystanki z CSV
-        return routeStops
-            .split(",", ";")
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
-            .map { stopName ->
+        return routeStops.split(",", ";").mapNotNull { stopData ->
+            val trimmed = stopData.trim()
+            if (trimmed.isEmpty()) return@mapNotNull null
+
+            // Sprawdź czy jest dwukropek (nazwa:czas)
+            if (trimmed.contains(":")) {
+                val parts = trimmed.split(":", limit = 2)
+                val stopName = parts[0].trim()
+                val time = parts.getOrNull(1)?.trim() ?: ""
+
+                // Walidacja czasu (opcjonalnie)
+                val validTime = if (time.matches(Regex("\\d{1,2}:\\d{2}"))) {
+                    time
+                } else {
+                    ""
+                }
+
                 BusStop(
                     stopName = stopName,
+                    arrivalTime = validTime,
+                    delayMinutes = 0
+                )
+            } else {
+                // Tylko nazwa przystanku (bez czasu)
+                BusStop(
+                    stopName = trimmed,
                     arrivalTime = "",
                     delayMinutes = 0
                 )
             }
+        }
     }
+
     private fun addMinutesToTime(time: String, minutes: Int): String {
         val parts = time.split(":").map { it.toIntOrNull() ?: 0 }
         var hour = parts[0]

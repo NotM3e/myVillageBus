@@ -58,4 +58,8 @@ interface BusScheduleDao {
     // Pobierz liczbę rozkładów
     @Query("SELECT COUNT(*) FROM bus_schedules")
     suspend fun getSchedulesCount(): Int
+
+    // Usuń rozkłady konkretnego przewoźnika
+    @Query("DELETE FROM bus_schedules WHERE carrierName = :carrierName")
+    suspend fun deleteSchedulesByCarrier(carrierName: String)
 }

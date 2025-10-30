@@ -40,29 +40,14 @@ data class RemoteConfig(
 data class CarrierInfo(
     val carrierName: String,
     val gid: String,
-    val color: String? = null,
-    val icon: String? = null,
     val active: Boolean = true,
-    val description: String? = null
+    val description: String? = null,
+    val version: Int? = null
 ) {
     /**
      * Czy przewoźnik jest aktywny i ma poprawne dane
      */
     fun isValid(): Boolean {
         return active && gid.isNotBlank() && carrierName.isNotBlank()
-    }
-
-    /**
-     * Zwraca kolor lub domyślny niebieski
-     */
-    fun getColorOrDefault(): String {
-        return color?.takeIf { it.isNotBlank() } ?: "#2196F3"
-    }
-
-    /**
-     * Zwraca ikonę lub domyślny autobus
-     */
-    fun getIconOrDefault(): String {
-        return icon?.takeIf { it.isNotBlank() } ?: "🚌"
     }
 }

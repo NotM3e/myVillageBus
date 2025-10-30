@@ -361,30 +361,39 @@ fun BusStopItem(
                     }
                 }
 
-                if (isFirst && departureTime != null) {
+                // Pokaż czas jeśli jest dostępny
+                val displayTime = when {
+                    isFirst && departureTime != null -> departureTime  // Pierwszy przystanek - czas odjazdu
+                    stop.arrivalTime.isNotEmpty() -> stop.arrivalTime  // Przystanek pośredni - jeśli ma czas
+                    else -> null  // Brak czasu
+                }
+
+                if (displayTime != null) {
                     Column(horizontalAlignment = Alignment.End) {
                         Text(
-                            text = departureTime,  // ← Z rozkładu
+                            text = displayTime,
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.primary
                         )
 
-                        // Licznik "za X min"
-                        val estimatedMinutes = calculateMinutesUntil(departureTime)
-                        if (estimatedMinutes != null && estimatedMinutes >= 0 && estimatedMinutes < 120) {
-                            Text(
-                                text = when {
-                                    estimatedMinutes == 0 -> "Teraz"
-                                    estimatedMinutes < 60 -> "za $estimatedMinutes min"
-                                    else -> "za ${estimatedMinutes / 60}h ${estimatedMinutes % 60}min"
-                                },
-                                style = MaterialTheme.typography.bodySmall,
-                                color = when {
-                                    estimatedMinutes <= 3 -> MaterialTheme.colorScheme.error
-                                    estimatedMinutes <= 10 -> MaterialTheme.colorScheme.tertiary
-                                    else -> MaterialTheme.colorScheme.onSurfaceVariant
-                                }
-                            )
+                        // Licznik "za X min" tylko dla pierwszego przystanku
+                        if (isFirst) {
+                            val estimatedMinutes = calculateMinutesUntil(displayTime)
+                            if (estimatedMinutes != null && estimatedMinutes >= 0 && estimatedMinutes < 120) {
+                                Text(
+                                    text = when {
+                                        estimatedMinutes == 0 -> "Teraz"
+                                        estimatedMinutes < 60 -> "za $estimatedMinutes min"
+                                        else -> "za ${estimatedMinutes / 60}h ${estimatedMinutes % 60}min"
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = when {
+                                        estimatedMinutes <= 3 -> MaterialTheme.colorScheme.error
+                                        estimatedMinutes <= 10 -> MaterialTheme.colorScheme.tertiary
+                                        else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                    }
+                                )
+                            }
                         }
                     }
                 }

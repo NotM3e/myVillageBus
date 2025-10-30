@@ -5,11 +5,13 @@ import com.myvillagebus.data.local.BusScheduleDao
 import com.myvillagebus.data.model.BusSchedule
 import com.myvillagebus.utils.CsvImporter
 import com.myvillagebus.utils.PreferencesManager
+import com.myvillagebus.utils.CarrierVersionManager
 import kotlinx.coroutines.flow.Flow
 
 class BusScheduleRepository(
     private val dao: BusScheduleDao,
-    private val preferencesManager: PreferencesManager
+    private val preferencesManager: PreferencesManager,
+    private val carrierVersionManager: CarrierVersionManager  // NOWE
 ) {
 
     val allSchedules: Flow<List<BusSchedule>> = dao.getAllSchedules()
@@ -73,98 +75,89 @@ class BusScheduleRepository(
     ): Result<String> {
         return try {
             Log.d("Sync", "Rozpoczynam synchronizację...")
-            Log.d("Sync", "URL Config: $configUrl")
 
             // 1. Pobierz Config
-            Log.d("Sync", "Pobieranie Config...")
             val config = CsvImporter.getRemoteConfig(configUrl)
                 ?: return Result.failure(Exception("Nie można pobrać Config"))
 
-            Log.d("Sync", "Config pobrany:")
-            Log.d("Sync", "   - version: ${config.version}")
-            Log.d("Sync", "   - carriers_gid: ${config.carriersGid}")
-            Log.d("Sync", "   - base_url: ${config.baseUrl}")
+            Log.d("Sync", "Config pobrany: version=${config.version}")
 
-            // 2. Sprawdź czy potrzebna synchronizacja
-            val localVersion = preferencesManager.getLastSyncVersion()
-            val remoteVersion = config.version
-
-            if (!forceSync && localVersion == remoteVersion) {
-                Log.d("Sync", "Dane są aktualne (wersja: $remoteVersion)")
-                return Result.success("Dane są już aktualne (wersja $remoteVersion)")
-            }
-
-            Log.d("Sync", "Wykryto nową wersję: $localVersion -> $remoteVersion")
-
-            // 3. Pobierz Carriers
+            // 2. Pobierz Carriers
             val carriersUrl = config.getCarriersUrl()
-            Log.d("Sync", "Pobieranie Carriers z: $carriersUrl")
-
             val carriersCsv = CsvImporter.downloadCsvFromUrl(carriersUrl)
             val carriers = CsvImporter.parseCarriers(carriersCsv)
                 .filter { it.isValid() }
 
-            Log.d("Sync", "Znaleziono ${carriers.size} aktywnych przewoźników:")
-            carriers.forEach { carrier ->
-                Log.d("Sync", "   - ${carrier.carrierName} (GID: ${carrier.gid})")
-            }
+            Log.d("Sync", "Znaleziono ${carriers.size} aktywnych przewoźników")
 
             if (carriers.isEmpty()) {
                 return Result.failure(Exception("Brak aktywnych przewoźników"))
             }
 
-            // 4. Pobierz dane dla każdego przewoźnika
+            // 3. Pobierz dane TYLKO dla przewoźników które się zmieniły
             val allSchedules = mutableListOf<BusSchedule>()
-            var successCount = 0
-            var errorCount = 0
+            var updatedCount = 0
+            var skippedCount = 0
 
             carriers.forEach { carrier ->
-                Log.d("Sync", "Pobieranie danych: ${carrier.carrierName}...")
+                val needsUpdate = forceSync ||
+                        carrierVersionManager.needsUpdate(carrier.carrierName, carrier.version)
 
-                try {
-                    val dataUrl = config.buildSheetUrl(carrier.gid, "tsv")
-                    Log.d("Sync", "   URL: $dataUrl")
+                if (needsUpdate) {
+                    Log.d("Sync", "📥 Pobieranie: ${carrier.carrierName} (wersja: ${carrier.version})")
 
-                    val dataCsv = CsvImporter.downloadCsvFromUrl(dataUrl)
-                    Log.d("Sync", "   Pobrano ${dataCsv.length} znaków")
+                    try {
+                        val dataUrl = config.buildSheetUrl(carrier.gid, "tsv")
+                        val dataCsv = CsvImporter.downloadCsvFromUrl(dataUrl)
+                        val schedules = CsvImporter.parseUniversalCsv(dataCsv, carrier.carrierName)
 
-                    val schedules = CsvImporter.parseUniversalCsv(dataCsv, carrier.carrierName)
+                        dao.deleteSchedulesByCarrier(carrier.carrierName)
+                        dao.insertSchedules(schedules)
+                        allSchedules.addAll(schedules)
 
-                    allSchedules.addAll(schedules)
-                    successCount++
+                        // NOWE: Zapisz wersję jako Int
+                        carrier.version?.let { version ->
+                            carrierVersionManager.saveCarrierVersion(carrier.carrierName, version)
+                        }
 
-                    Log.d("Sync", "${carrier.carrierName}: ${schedules.size} rozkładów")
+                        updatedCount++
+                        Log.d("Sync", "✅ ${carrier.carrierName}: ${schedules.size} rozkładów (v${carrier.version})")
 
-                } catch (e: Exception) {
-                    errorCount++
-                    Log.e("Sync", "Błąd pobierania ${carrier.carrierName}: ${e.message}", e)
+                    } catch (e: Exception) {
+                        Log.e("Sync", "❌ Błąd: ${carrier.carrierName}: ${e.message}", e)
+                    }
+                } else {
+                    skippedCount++
+                    val localVer = carrierVersionManager.getCarrierVersion(carrier.carrierName)
+                    Log.d("Sync", "⏭️  Pominięto: ${carrier.carrierName} (lokalna: v$localVer, zdalna: v${carrier.version})")
                 }
             }
 
-            if (allSchedules.isEmpty()) {
-                return Result.failure(Exception("Nie pobrano żadnych rozkładów"))
-            }
-
-            // 5. Zapisz do bazy danych
-            Log.d("Sync", "Zapisywanie do bazy...")
-            dao.deleteAllSchedules()
-            dao.insertSchedules(allSchedules)
-
-            // 6. Zapisz wersję i czas synchronizacji
-            preferencesManager.saveLastSyncVersion(remoteVersion)
+            // Zapisz globalną wersję i czas
+            preferencesManager.saveLastSyncVersion(config.version)
             preferencesManager.saveLastSyncTime()
 
-            val summary = "Synchronizacja zakończona!\n" +
-                    "Przewoźnicy: $successCount/${carriers.size}\n" +
-                    "Rozkłady: ${allSchedules.size}\n" +
-                    "Wersja: $remoteVersion"
+            // Przygotuj komunikat
+            val message = when {
+                updatedCount == 0 && skippedCount > 0 ->
+                    "Wszystkie dane są aktualne"
 
-            Log.d("Sync", summary)
+                updatedCount > 0 && skippedCount == 0 ->
+                    "Zsynchronizowano $updatedCount ${if (updatedCount == 1) "przewoźnika" else "przewoźników"}"
 
-            Result.success("Zsynchronizowano ${allSchedules.size} rozkładów z ${successCount} przewoźników (wersja $remoteVersion)")
+                updatedCount > 0 && skippedCount > 0 ->
+                    "Zsynchronizowano $updatedCount ${if (updatedCount == 1) "przewoźnika" else "przewoźników"} (${skippedCount} bez zmian)"
+
+                else ->
+                    "Synchronizacja zakończona"
+            }
+
+            Log.d("Sync", "✅ $message")
+
+            Result.success(message)
 
         } catch (e: Exception) {
-            Log.e("Sync", "Błąd synchronizacji: ${e.message}", e)
+            Log.e("Sync", "❌ Błąd synchronizacji: ${e.message}", e)
             Result.failure(e)
         }
     }
