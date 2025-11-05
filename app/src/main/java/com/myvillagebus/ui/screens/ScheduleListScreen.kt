@@ -29,13 +29,12 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.unit.dp
 import com.myvillagebus.data.model.BusSchedule
-import java.text.SimpleDateFormat
-import java.util.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import com.myvillagebus.utils.calculateMinutesUntil
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -1033,26 +1032,4 @@ fun getDesignationColor(designation: String): androidx.compose.ui.graphics.Color
 
     // Wybierz kolor na podstawie hash'a
     return colors[hash.mod(colors.size)]
-}
-
-// Funkcja obliczająca minuty do odjazdu
-fun calculateMinutesUntil(departureTime: String): Int? {
-    return try {
-        val format = SimpleDateFormat("HH:mm", Locale.getDefault())
-        val now = Calendar.getInstance()
-        val departure = Calendar.getInstance()
-
-        val time = format.parse(departureTime)
-        time?.let {
-            departure.time = it
-            departure.set(Calendar.YEAR, now.get(Calendar.YEAR))
-            departure.set(Calendar.MONTH, now.get(Calendar.MONTH))
-            departure.set(Calendar.DAY_OF_MONTH, now.get(Calendar.DAY_OF_MONTH))
-
-            val diff = (departure.timeInMillis - now.timeInMillis) / (60 * 1000)
-            diff.toInt()
-        }
-    } catch (e: Exception) {
-        null
-    }
 }

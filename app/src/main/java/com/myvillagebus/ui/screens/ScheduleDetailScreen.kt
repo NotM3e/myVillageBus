@@ -20,6 +20,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.FlowRow
 import java.time.DayOfWeek
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import com.myvillagebus.utils.calculateMinutesUntil
 
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -97,17 +98,22 @@ fun ScheduleDetailScreen(
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
 
+                        // ← ZMIANA: Rozdziel wielokrotne oznaczenia
                         schedule.lineDesignation?.let { designation ->
-                            Surface(
-                                shape = MaterialTheme.shapes.small,
-                                color = getDesignationColor(designation)
-                            ) {
-                                Text(
-                                    text = designation,
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.onPrimary,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                                )
+                            val designations = designation.split(",").map { it.trim() }
+
+                            designations.forEach { singleDesignation ->
+                                Surface(
+                                    shape = MaterialTheme.shapes.small,
+                                    color = getDesignationColor(singleDesignation)  // ← Kolor per oznaczenie
+                                ) {
+                                    Text(
+                                        text = singleDesignation,  // ← Wyświetla "Komursk" i "Warlubie" osobno
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = MaterialTheme.colorScheme.onPrimary,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                    )
+                                }
                             }
                         }
                     }

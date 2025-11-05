@@ -13,6 +13,8 @@ import com.myvillagebus.data.remote.RemoteConfig
 import com.myvillagebus.data.remote.CarrierInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.*
 
 object CsvImporter {
 
@@ -56,7 +58,12 @@ object CsvImporter {
                 }
             }
 
-            val version = map["version"] ?: return null
+            // ← ZMIANA: Użyj timestampu jako fallback jeśli brak wersji
+            val version = map["version"] ?: run {
+                Log.w("CsvImporter", "⚠️ Brak 'version' w Config, używam timestampu jako fallback")
+                SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+            }
+
             val carriersGid = map["carriers_gid"] ?: return null
             val baseUrl = map["base_url"] ?: return null
 
