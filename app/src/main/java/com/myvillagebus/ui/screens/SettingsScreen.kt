@@ -466,6 +466,7 @@ fun SettingsScreen(
                             )
                         }
                     }
+                    /*
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -503,15 +504,35 @@ fun SettingsScreen(
                             )
                         }
                     }
+                    */
 
                     HorizontalDivider()
 
-                    // Copyright
-                    Text(
-                        text = "© 2025 - Projekt niekomercyjny",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
-                    )
+                    // Disclaimer
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "⚠️ Zastrzeżenie",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                        Text(
+                            text = "Aplikacja nie jest odpowiedzialna za opóźnienia rozkładów. " +
+                                    "Ma ona wyłącznie na celu przedstawienie rozkładów w jednym miejscu.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f),
+                            lineHeight = MaterialTheme.typography.bodySmall.lineHeight * 1.4f
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Text(
+                            text = "© 2025 - Projekt niekomercyjny",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.5f)
+                        )
+                    }
                 }
             }
         }
