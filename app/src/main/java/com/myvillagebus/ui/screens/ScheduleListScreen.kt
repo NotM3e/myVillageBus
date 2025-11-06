@@ -35,6 +35,17 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import com.myvillagebus.utils.calculateMinutesUntil
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.rememberTimePickerState
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,6 +63,16 @@ fun ScheduleListScreen(
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var showOnlyToday by rememberSaveable { mutableStateOf(false) }
     var filtersExpanded by rememberSaveable { mutableStateOf(false) }
+
+    // ← NOWE: Stan dialogu wyboru godziny
+    var showTimePickerDialog by remember { mutableStateOf(false) }
+
+    // ← NOWE: LazyListState do kontroli scrollowania
+    val listState = rememberLazyListState()
+
+    // ← NOWE: Snackbar host state
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     // Pobierz unikalnych przewoźników
     val carriers = remember(schedules) {
@@ -130,11 +151,54 @@ fun ScheduleListScreen(
     val hasActiveFilters = selectedCarriers.isNotEmpty() || selectedDesignations.isNotEmpty() ||
             selectedDirection != null || selectedStops.isNotEmpty()
 
+    // ← NOWE: Funkcja pomocnicza - konwersja "HH:MM" na minuty
+    fun parseTimeToMinutes(time: String): Int {
+        return try {
+            val parts = time.split(":")
+            val hours = parts[0].toInt()
+            val minutes = parts[1].toInt()
+            hours * 60 + minutes
+        } catch (e: Exception) {
+            0
+        }
+    }
+
+    // ← NOWE: Funkcja scrollowania do wybranej godziny
+    fun scrollToTime(hour: Int, minute: Int) {
+        scope.launch {
+            val selectedTimeMinutes = hour * 60 + minute
+
+            // Znajdź pierwszy rozkład >= wybranej godziny
+            val targetIndex = filteredSchedules.indexOfFirst { schedule ->
+                val scheduleMinutes = parseTimeToMinutes(schedule.departureTime)  // ← Teraz działa!
+                scheduleMinutes >= selectedTimeMinutes
+            }
+
+            if (targetIndex != -1) {
+                // Znaleziono - scroll do rozkładu
+                listState.animateScrollToItem(targetIndex)
+            } else {
+                // Brak rozkładów po wybranej godzinie - scroll do ostatniego
+                if (filteredSchedules.isNotEmpty()) {
+                    listState.animateScrollToItem(filteredSchedules.lastIndex)
+                    snackbarHostState.showSnackbar(
+                        message = "Brak rozkładów po godzinie ${String.format("%02d:%02d", hour, minute)}. Pokazano ostatni",
+                        duration = SnackbarDuration.Short
+                    )
+                } else {
+                    snackbarHostState.showSnackbar(
+                        message = "Brak rozkładów do wyświetlenia",
+                        duration = SnackbarDuration.Short
+                    )
+                }
+            }
+        }
+    }
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Rozkład jazdy") },
-                actions = {  // ← DODAJ ACTIONS
+                actions = {
                     IconButton(onClick = onSettingsClick) {
                         Icon(
                             imageVector = Icons.Default.Settings,
@@ -148,7 +212,8 @@ fun ScheduleListScreen(
                     actionIconContentColor = MaterialTheme.colorScheme.onPrimary
                 )
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }  // ← DODAJ
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -220,6 +285,7 @@ fun ScheduleListScreen(
                         }
                     },
                     onTodayToggle = { showOnlyToday = !showOnlyToday },
+                    onTimePickerClick = { showTimePickerDialog = true },  // ← DODAJ
                     onClearFilters = {
                         selectedCarriers = setOf()
                         selectedDesignations = setOf()
@@ -345,6 +411,7 @@ fun ScheduleListScreen(
                 }
             } else {
                 LazyColumn(
+                    state = listState,  // ← DODAJ
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -358,6 +425,16 @@ fun ScheduleListScreen(
                     }
                 }
             }
+        }
+        // ← NOWE: Dialog wyboru godziny
+        if (showTimePickerDialog) {
+            TimePickerDialog(
+                onDismiss = { showTimePickerDialog = false },
+                onConfirm = { hour, minute ->
+                    scrollToTime(hour, minute)
+                    showTimePickerDialog = false
+                }
+            )
         }
     }
 }
@@ -566,7 +643,7 @@ fun ActiveFiltersChips(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun FilterSection(
     carriers: List<String>,
@@ -585,20 +662,21 @@ fun FilterSection(
     onDirectionSelected: (String) -> Unit,
     onStopToggle: (String) -> Unit,
     onTodayToggle: () -> Unit,
+    onTimePickerClick: () -> Unit,  // ← DODAJ
     onClearFilters: () -> Unit
 ) {
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // ← NOWY: Filtr "Tylko dziś" (na górze, zawsze widoczny)
-        Row(
+        // ← ZMIANA: Jeden wiersz z automatycznym zawijaniem
+        FlowRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            // Przycisk "Kursujące dziś"
             FilterChip(
                 selected = showOnlyToday,
                 onClick = onTodayToggle,
@@ -617,13 +695,29 @@ fun FilterSection(
                 )
             )
 
+            // Przycisk "Wybór godziny"
+            FilterChip(
+                selected = false,
+                onClick = onTimePickerClick,
+                label = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text("🕒")
+                        Text("Wybór godziny")
+                    }
+                }
+            )
+
             // Informacja jaki dziś dzień
+            /*
             Text(
                 text = "(${BusSchedule.getDayNameInPolish(BusSchedule.getCurrentDayOfWeek())})",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.align(Alignment.CenterVertically)
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+             */
         }
 
         HorizontalDivider(
@@ -704,7 +798,7 @@ fun FilterSection(
             }
         }
 
-// Filtry przystanków (MULTI-SELECT OR)
+        // Filtry przystanków (MULTI-SELECT OR)
         if (allStops.isNotEmpty()) {
             Text(
                 text = "Przystanek na trasie:",
@@ -1056,4 +1150,49 @@ fun getDesignationColor(designation: String): androidx.compose.ui.graphics.Color
 
     // Wybierz kolor na podstawie hash'a
     return colors[hash.mod(colors.size)]
+}
+
+/**
+ * Dialog z Material 3 TimePickerem
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TimePickerDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (hour: Int, minute: Int) -> Unit
+) {
+    // Pobierz aktualną godzinę jako domyślną
+    val calendar = Calendar.getInstance()
+    val currentHour = calendar.get(Calendar.HOUR_OF_DAY)
+    val currentMinute = calendar.get(Calendar.MINUTE)
+
+    val timePickerState = rememberTimePickerState(
+        initialHour = currentHour,
+        initialMinute = currentMinute,
+        is24Hour = true
+    )
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Anuluj")
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    onConfirm(timePickerState.hour, timePickerState.minute)
+                }
+            ) {
+                Text("OK")
+            }
+        },
+        text = {
+            TimePicker(
+                state = timePickerState,
+                modifier = Modifier.padding(16.dp)
+            )
+        }
+    )
 }
