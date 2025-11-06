@@ -18,7 +18,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
@@ -31,10 +30,11 @@ import androidx.compose.ui.unit.dp
 import com.myvillagebus.data.model.BusSchedule
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import com.myvillagebus.utils.calculateMinutesUntil
+import androidx.compose.material.icons.filled.Check
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,10 +44,11 @@ fun ScheduleListScreen(
     onSettingsClick: () -> Unit  // ← DODAJ PARAMETR
 ) {
     // Stany filtrów
-    var selectedCarrier by rememberSaveable { mutableStateOf<String?>(null) }
-    var selectedDesignation by rememberSaveable { mutableStateOf<String?>(null) }
-    var selectedDirection by rememberSaveable { mutableStateOf<String?>(null) }
-    var selectedStop by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedCarriers by rememberSaveable { mutableStateOf(setOf<String>()) }
+    var selectedDesignations by rememberSaveable { mutableStateOf(setOf<String>()) }
+    var selectedDirection by rememberSaveable { mutableStateOf<String?>(null) }  // Single-select, others is Multi-select
+    var selectedStops by rememberSaveable { mutableStateOf(setOf<String>()) }
+
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var showOnlyToday by rememberSaveable { mutableStateOf(false) }
     var filtersExpanded by rememberSaveable { mutableStateOf(false) }
@@ -58,20 +59,25 @@ fun ScheduleListScreen(
     }
 
     // Pobierz unikalne oznaczenia linii
-    val designations = remember(schedules, selectedCarrier) {
+    val designations = remember(schedules, selectedCarriers) {
         schedules
-            .filter { selectedCarrier == null || it.carrierName == selectedCarrier }
+            .filter { selectedCarriers.isEmpty() || selectedCarriers.contains(it.carrierName) }  // ← OR logic
             .mapNotNull { it.lineDesignation }
+            .flatMap { it.split(",").map { d -> d.trim() } }  // ← Rozdziel wielokrotne oznaczenia
             .distinct()
             .sorted()
     }
 
     // Pobierz unikalne kierunki
-    val directions = remember(schedules, selectedCarrier, selectedDesignation) {
+    val directions = remember(schedules, selectedCarriers, selectedDesignations) {
         schedules
             .filter {
-                (selectedCarrier == null || it.carrierName == selectedCarrier) &&
-                        (selectedDesignation == null || it.lineDesignation == selectedDesignation)
+                val matchesCarrier = selectedCarriers.isEmpty() || selectedCarriers.contains(it.carrierName)
+                val matchesDesignation = selectedDesignations.isEmpty() ||
+                        selectedDesignations.all { designation ->
+                            it.lineDesignation?.split(",")?.map { d -> d.trim() }?.contains(designation) == true
+                        }
+                matchesCarrier && matchesDesignation
             }
             .map { it.direction }
             .distinct()
@@ -79,11 +85,15 @@ fun ScheduleListScreen(
     }
 
     // Pobierz wszystkie przystanki z tras
-    val allStops = remember(schedules, selectedCarrier, selectedDesignation) {
+    val allStops = remember(schedules, selectedCarriers, selectedDesignations) {
         schedules
             .filter {
-                (selectedCarrier == null || it.carrierName == selectedCarrier) &&
-                        (selectedDesignation == null || it.lineDesignation == selectedDesignation)
+                val matchesCarrier = selectedCarriers.isEmpty() || selectedCarriers.contains(it.carrierName)
+                val matchesDesignation = selectedDesignations.isEmpty() ||
+                        selectedDesignations.all { designation ->
+                            it.lineDesignation?.split(",")?.map { d -> d.trim() }?.contains(designation) == true
+                        }
+                matchesCarrier && matchesDesignation
             }
             .flatMap { schedule -> schedule.stops.map { it.stopName } }
             .distinct()
@@ -91,17 +101,25 @@ fun ScheduleListScreen(
     }
 
     // Filtrowanie rozkładów
-    val filteredSchedules = remember(schedules, selectedCarrier, selectedDesignation, selectedDirection, selectedStop, showOnlyToday) {
+    val filteredSchedules = remember(schedules, selectedCarriers, selectedDesignations, selectedDirection, selectedStops, showOnlyToday) {
         schedules.filter { schedule ->
-            val matchesCarrier = selectedCarrier == null || schedule.carrierName == selectedCarrier
+            // ← OR: Kurs od któregokolwiek wybranego przewoźnika
+            val matchesCarrier = selectedCarriers.isEmpty() || selectedCarriers.contains(schedule.carrierName)
 
-            // ZMIENIONE: Sprawdź czy oznaczenie zawiera wybraną wartość
-            val matchesDesignation = selectedDesignation == null ||
-                    schedule.lineDesignation?.split(",")?.map { it.trim() }?.contains(selectedDesignation) == true
+            // ← AND: Kurs musi mieć WSZYSTKIE wybrane oznaczenia
+            val matchesDesignation = selectedDesignations.isEmpty() ||
+                    selectedDesignations.all { designation ->
+                        schedule.lineDesignation?.split(",")?.map { it.trim() }?.contains(designation) == true
+                    }
 
+            // ← Single-select
             val matchesDirection = selectedDirection == null || schedule.direction == selectedDirection
-            val matchesStop = selectedStop == null ||
-                    schedule.stops.any { it.stopName == selectedStop }
+
+            // ← OR: Kurs jedzie przez którykolwiek wybrany przystanek
+            val matchesStop = selectedStops.isEmpty() ||
+                    selectedStops.any { stop ->
+                        schedule.stops.any { it.stopName == stop }
+                    }
 
             val matchesToday = !showOnlyToday || schedule.operatesToday()
 
@@ -109,9 +127,8 @@ fun ScheduleListScreen(
         }.sortedBy { it.departureTime }
     }
 
-    // ← NOWE: Sprawdź czy jakieś filtry są aktywne
-    val hasActiveFilters = selectedCarrier != null || selectedDesignation != null ||
-            selectedDirection != null || selectedStop != null
+    val hasActiveFilters = selectedCarriers.isNotEmpty() || selectedDesignations.isNotEmpty() ||
+            selectedDirection != null || selectedStops.isNotEmpty()
 
     Scaffold(
         topBar = {
@@ -142,19 +159,16 @@ fun ScheduleListScreen(
             FilterHeader(
                 expanded = filtersExpanded,
                 hasActiveFilters = hasActiveFilters,
-                activeFiltersCount = listOfNotNull(
-                    selectedCarrier,
-                    selectedDesignation,
-                    selectedDirection,
-                    selectedStop
-                ).size,
+                activeFiltersCount = selectedCarriers.size + selectedDesignations.size +
+                        (if (selectedDirection != null) 1 else 0) + selectedStops.size,
                 onToggleExpanded = { filtersExpanded = !filtersExpanded },
                 onClearFilters = {
-                    selectedCarrier = null
-                    selectedDesignation = null
+                    selectedCarriers = setOf()
+                    selectedDesignations = setOf()
                     selectedDirection = null
-                    selectedStop = null
+                    selectedStops = setOf()
                     searchQuery = ""
+                    showOnlyToday = false
                 }
             )
 
@@ -174,38 +188,45 @@ fun ScheduleListScreen(
                     designations = designations,
                     directions = directions,
                     allStops = allStops,
-                    selectedCarrier = selectedCarrier,
-                    selectedDesignation = selectedDesignation,
+                    selectedCarriers = selectedCarriers,
+                    selectedDesignations = selectedDesignations,
                     selectedDirection = selectedDirection,
-                    selectedStop = selectedStop,
+                    selectedStops = selectedStops,
                     searchQuery = searchQuery,
-                    showOnlyToday = showOnlyToday,  // ← DODAJ
+                    showOnlyToday = showOnlyToday,
                     onSearchQueryChange = { searchQuery = it },
-                    onCarrierSelected = { carrier ->
-                        selectedCarrier = if (selectedCarrier == carrier) null else carrier
-                        selectedDesignation = null
-                        selectedDirection = null
-                        selectedStop = null
+                    onCarrierToggle = { carrier ->
+                        selectedCarriers = if (selectedCarriers.contains(carrier)) {
+                            selectedCarriers - carrier
+                        } else {
+                            selectedCarriers + carrier
+                        }
                     },
-                    onDesignationSelected = { designation ->
-                        selectedDesignation = if (selectedDesignation == designation) null else designation
-                        selectedDirection = null
-                        selectedStop = null
+                    onDesignationToggle = { designation ->
+                        selectedDesignations = if (selectedDesignations.contains(designation)) {
+                            selectedDesignations - designation
+                        } else {
+                            selectedDesignations + designation
+                        }
                     },
                     onDirectionSelected = { direction ->
                         selectedDirection = if (selectedDirection == direction) null else direction
                     },
-                    onStopSelected = { stop ->
-                        selectedStop = if (selectedStop == stop) null else stop
+                    onStopToggle = { stop ->
+                        selectedStops = if (selectedStops.contains(stop)) {
+                            selectedStops - stop
+                        } else {
+                            selectedStops + stop
+                        }
                     },
-                    onTodayToggle = { showOnlyToday = !showOnlyToday },  // ← DODAJ
+                    onTodayToggle = { showOnlyToday = !showOnlyToday },
                     onClearFilters = {
-                        selectedCarrier = null
-                        selectedDesignation = null
+                        selectedCarriers = setOf()
+                        selectedDesignations = setOf()
                         selectedDirection = null
-                        selectedStop = null
+                        selectedStops = setOf()
                         searchQuery = ""
-                        showOnlyToday = false  // ← DODAJ
+                        showOnlyToday = false
                     }
                 )
             }
@@ -220,14 +241,20 @@ fun ScheduleListScreen(
                 ) + fadeOut()
             ) {
                 ActiveFiltersChips(
-                    selectedCarrier = selectedCarrier,
-                    selectedDesignation = selectedDesignation,
+                    selectedCarriers = selectedCarriers,
+                    selectedDesignations = selectedDesignations,
                     selectedDirection = selectedDirection,
-                    selectedStop = selectedStop,
-                    onRemoveCarrier = { selectedCarrier = null },
-                    onRemoveDesignation = { selectedDesignation = null },
+                    selectedStops = selectedStops,
+                    onRemoveCarrier = { carrier ->
+                        selectedCarriers = selectedCarriers - carrier
+                    },
+                    onRemoveDesignation = { designation ->
+                        selectedDesignations = selectedDesignations - designation
+                    },
                     onRemoveDirection = { selectedDirection = null },
-                    onRemoveStop = { selectedStop = null }
+                    onRemoveStop = { stop ->
+                        selectedStops = selectedStops - stop
+                    }
                 )
             }
 
@@ -260,9 +287,9 @@ fun ScheduleListScreen(
                 }
             }
 
-            Divider(color = MaterialTheme.colorScheme.outlineVariant)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
-// Lista rozkładów
+            // Lista rozkładów
             if (filteredSchedules.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -325,7 +352,7 @@ fun ScheduleListScreen(
                     items(filteredSchedules) { schedule ->
                         BusScheduleItem(
                             schedule = schedule,
-                            highlightedStop = selectedStop,
+                            highlightedStops = selectedStops,
                             onClick = { onScheduleClick(schedule) }
                         )
                     }
@@ -431,94 +458,92 @@ fun FilterHeader(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ActiveFiltersChips(
-    selectedCarrier: String?,
-    selectedDesignation: String?,
+    selectedCarriers: Set<String>,
+    selectedDesignations: Set<String>,
     selectedDirection: String?,
-    selectedStop: String?,
-    onRemoveCarrier: () -> Unit,
-    onRemoveDesignation: () -> Unit,
+    selectedStops: Set<String>,
+    onRemoveCarrier: (String) -> Unit,
+    onRemoveDesignation: (String) -> Unit,
     onRemoveDirection: () -> Unit,
-    onRemoveStop: () -> Unit
+    onRemoveStop: (String) -> Unit
 ) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        selectedCarrier?.let { carrier ->
-            item {
-                AnimatedVisibility(  // ← ANIMACJA
-                    visible = true,
-                    enter = scaleIn() + fadeIn(),
-                    exit = scaleOut() + fadeOut()
-                ) {
-                    InputChip(
-                        selected = true,
-                        onClick = onRemoveCarrier,
-                        label = { Text("Przewoźnik: $carrier") },
-                        trailingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.Clear,
-                                contentDescription = "Usuń",
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    )
-                }
-            }
-        }
-
-        selectedDesignation?.let { designation ->
-            item {
-                AnimatedVisibility(  // ← ANIMACJA
-                    visible = true,
-                    enter = scaleIn() + fadeIn(),
-                    exit = scaleOut() + fadeOut()
-                ) {
-                    InputChip(
-                        selected = true,
-                        onClick = onRemoveDesignation,
-                        label = { Text("Oznaczenie: $designation") },
-                        trailingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.Clear,
-                                contentDescription = "Usuń",
-                                modifier = Modifier.size(18.dp)
-                            )
-                        },
-                        colors = InputChipDefaults.inputChipColors(
-                            selectedContainerColor = getDesignationColor(designation)
+        // ← MULTI: Przewoźnicy
+        items(selectedCarriers.toList()) { carrier ->
+            AnimatedVisibility(
+                visible = true,
+                enter = scaleIn() + fadeIn(),
+                exit = scaleOut() + fadeOut()
+            ) {
+                InputChip(
+                    selected = true,
+                    onClick = { onRemoveCarrier(carrier) },
+                    label = { Text(carrier) },
+                    trailingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Clear,
+                            contentDescription = "Usuń",
+                            modifier = Modifier.size(18.dp)
                         )
-                    )
-                }
+                    }
+                )
             }
         }
 
-        selectedStop?.let { stop ->
-            item {
-                AnimatedVisibility(  // ← ANIMACJA
-                    visible = true,
-                    enter = scaleIn() + fadeIn(),
-                    exit = scaleOut() + fadeOut()
-                ) {
-                    InputChip(
-                        selected = true,
-                        onClick = onRemoveStop,
-                        label = { Text("Przystanek: $stop") },
-                        trailingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.Clear,
-                                contentDescription = "Usuń",
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
+        // ← MULTI: Oznaczenia
+        items(selectedDesignations.toList()) { designation ->
+            AnimatedVisibility(
+                visible = true,
+                enter = scaleIn() + fadeIn(),
+                exit = scaleOut() + fadeOut()
+            ) {
+                InputChip(
+                    selected = true,
+                    onClick = { onRemoveDesignation(designation) },
+                    label = { Text(designation) },
+                    trailingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Clear,
+                            contentDescription = "Usuń",
+                            modifier = Modifier.size(18.dp)
+                        )
+                    },
+                    colors = InputChipDefaults.inputChipColors(
+                        selectedContainerColor = getDesignationColor(designation)
                     )
-                }
+                )
             }
         }
 
+        // ← MULTI: Przystanki
+        items(selectedStops.toList()) { stop ->
+            AnimatedVisibility(
+                visible = true,
+                enter = scaleIn() + fadeIn(),
+                exit = scaleOut() + fadeOut()
+            ) {
+                InputChip(
+                    selected = true,
+                    onClick = { onRemoveStop(stop) },
+                    label = { Text(stop) },
+                    trailingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Clear,
+                            contentDescription = "Usuń",
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                )
+            }
+        }
+
+        // ← SINGLE: Kierunek (bez zmian)
         selectedDirection?.let { direction ->
             item {
-                AnimatedVisibility(  // ← ANIMACJA
+                AnimatedVisibility(
                     visible = true,
                     enter = scaleIn() + fadeIn(),
                     exit = scaleOut() + fadeOut()
@@ -526,7 +551,7 @@ fun ActiveFiltersChips(
                     InputChip(
                         selected = true,
                         onClick = onRemoveDirection,
-                        label = { Text("Kierunek: $direction") },
+                        label = { Text("→ $direction") },
                         trailingIcon = {
                             Icon(
                                 imageVector = Icons.Default.Clear,
@@ -548,18 +573,18 @@ fun FilterSection(
     designations: List<String>,
     directions: List<String>,
     allStops: List<String>,
-    selectedCarrier: String?,
-    selectedDesignation: String?,
+    selectedCarriers: Set<String>,
+    selectedDesignations: Set<String>,
     selectedDirection: String?,
-    selectedStop: String?,
+    selectedStops: Set<String>,
     searchQuery: String,
-    showOnlyToday: Boolean,  // ← NOWY PARAMETR
+    showOnlyToday: Boolean,
     onSearchQueryChange: (String) -> Unit,
-    onCarrierSelected: (String) -> Unit,
-    onDesignationSelected: (String) -> Unit,
+    onCarrierToggle: (String) -> Unit,
+    onDesignationToggle: (String) -> Unit,
     onDirectionSelected: (String) -> Unit,
-    onStopSelected: (String) -> Unit,
-    onTodayToggle: () -> Unit,  // ← NOWY PARAMETR
+    onStopToggle: (String) -> Unit,
+    onTodayToggle: () -> Unit,
     onClearFilters: () -> Unit
 ) {
     Column(
@@ -601,12 +626,12 @@ fun FilterSection(
             )
         }
 
-        Divider(
+        HorizontalDivider(
             modifier = Modifier.padding(horizontal = 16.dp),
             color = MaterialTheme.colorScheme.outlineVariant
         )
 
-        // Filtry przewoźników
+        // Filtry przewoźników (MULTI-SELECT OR)
         if (carriers.isNotEmpty()) {
             Text(
                 text = "Przewoźnik:",
@@ -621,14 +646,14 @@ fun FilterSection(
             ) {
                 items(carriers) { carrier ->
                     FilterChip(
-                        selected = selectedCarrier == carrier,
-                        onClick = { onCarrierSelected(carrier) },
+                        selected = selectedCarriers.contains(carrier),
+                        onClick = { onCarrierToggle(carrier) },
                         label = { Text(carrier) },
-                        leadingIcon = if (selectedCarrier == carrier) {
+                        leadingIcon = if (selectedCarriers.contains(carrier)) {
                             {
                                 Icon(
-                                    imageVector = Icons.Default.Clear,
-                                    contentDescription = "Usuń filtr",
+                                    imageVector = Icons.Default.Check,  // ← Checkmark zamiast X
+                                    contentDescription = "Wybrano",
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -638,7 +663,7 @@ fun FilterSection(
             }
         }
 
-        // Filtry oznaczeń linii
+        // Filtry oznaczeń linii (MULTI-SELECT AND)
         if (designations.isNotEmpty()) {
             Text(
                 text = "Oznaczenie linii:",
@@ -647,22 +672,14 @@ fun FilterSection(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
             )
 
-            // NOWE: Rozbij wielokrotne oznaczenia i usuń duplikaty
-            val expandedDesignations = remember(designations) {
-                designations
-                    .flatMap { it.split(",").map { part -> part.trim() } }
-                    .distinct()
-                    .sorted()
-            }
-
             LazyRow(
                 contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(expandedDesignations) { designation ->
+                items(designations) { designation ->
                     FilterChip(
-                        selected = selectedDesignation == designation,
-                        onClick = { onDesignationSelected(designation) },
+                        selected = selectedDesignations.contains(designation),
+                        onClick = { onDesignationToggle(designation) },
                         label = {
                             Text(
                                 text = designation,
@@ -673,11 +690,11 @@ fun FilterSection(
                             selectedContainerColor = getDesignationColor(designation),
                             selectedLabelColor = MaterialTheme.colorScheme.onPrimary
                         ),
-                        leadingIcon = if (selectedDesignation == designation) {
+                        leadingIcon = if (selectedDesignations.contains(designation)) {
                             {
                                 Icon(
-                                    imageVector = Icons.Default.Clear,
-                                    contentDescription = "Usuń filtr",
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = "Wybrano",
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -687,7 +704,7 @@ fun FilterSection(
             }
         }
 
-        // Filtry przystanków (wszystkich na trasach)
+// Filtry przystanków (MULTI-SELECT OR)
         if (allStops.isNotEmpty()) {
             Text(
                 text = "Przystanek na trasie:",
@@ -740,14 +757,14 @@ fun FilterSection(
                 } else {
                     items(filteredStops) { stop ->
                         FilterChip(
-                            selected = selectedStop == stop,
-                            onClick = { onStopSelected(stop) },
+                            selected = selectedStops.contains(stop),
+                            onClick = { onStopToggle(stop) },
                             label = { Text(stop) },
-                            leadingIcon = if (selectedStop == stop) {
+                            leadingIcon = if (selectedStops.contains(stop)) {
                                 {
                                     Icon(
-                                        imageVector = Icons.Default.Clear,
-                                        contentDescription = "Usuń filtr",
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = "Wybrano",
                                         modifier = Modifier.size(18.dp)
                                     )
                                 }
@@ -790,7 +807,7 @@ fun FilterSection(
             }
         }
 
-        Divider(
+        HorizontalDivider(
             modifier = Modifier.padding(top = 8.dp),
             color = MaterialTheme.colorScheme.outlineVariant
         )
@@ -801,12 +818,14 @@ fun FilterSection(
 @Composable
 fun BusScheduleItem(
     schedule: BusSchedule,
-    highlightedStop: String? = null,
+    highlightedStops: Set<String> = emptySet(),  // ← MULTI
     onClick: () -> Unit
 ) {
     val minutesUntil = calculateMinutesUntil(schedule.departureTime)
-    val hasHighlightedStop = highlightedStop != null &&
-            schedule.stops.any { it.stopName == highlightedStop }
+    val hasHighlightedStop = highlightedStops.isNotEmpty() &&
+            highlightedStops.any { stop ->
+                schedule.stops.any { it.stopName == stop }
+            }
     val operatesToday = schedule.operatesToday()  // ← NOWE
 
     Card(
@@ -879,6 +898,7 @@ fun BusScheduleItem(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
+                /* <-> UKRYTE: Kierunek i przystanek początkowy (duplikacja z trasy busLine)
                 // Kierunek
                 Text(
                     text = "→ ${schedule.direction}",
@@ -900,6 +920,7 @@ fun BusScheduleItem(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+                */
 
                 // ← NOWE: Dni kursu
                 Row(
@@ -936,10 +957,13 @@ fun BusScheduleItem(
                     }
                 }
 
-                // Wybrany przystanek
-                if (hasHighlightedStop && highlightedStop != schedule.stopName) {
-                    val stopOnRoute = schedule.stops.find { it.stopName == highlightedStop }
-                    stopOnRoute?.let {
+                // Wybrane przystanki
+                if (hasHighlightedStop) {
+                    val stopsOnRoute = schedule.stops
+                        .filter { highlightedStops.contains(it.stopName) && it.stopName != schedule.stopName }
+                        .map { it.stopName }
+
+                    if (stopsOnRoute.isNotEmpty()) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.padding(top = 4.dp)
@@ -949,7 +973,7 @@ fun BusScheduleItem(
                                 style = MaterialTheme.typography.bodySmall
                             )
                             Text(
-                                text = highlightedStop,  // ZMIENIONE: bez czasu
+                                text = stopsOnRoute.joinToString(", "),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -990,7 +1014,7 @@ fun BusScheduleItem(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Icon(
-                    imageVector = Icons.Default.ArrowForward,
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                     contentDescription = "Zobacz szczegóły",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
