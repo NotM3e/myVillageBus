@@ -429,6 +429,7 @@ fun SettingsScreen(
                     HorizontalDivider()
 
                     // Link do strony
+                    /*
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -466,6 +467,8 @@ fun SettingsScreen(
                             )
                         }
                     }
+
+                     */
                     /*
                     Surface(
                         modifier = Modifier
