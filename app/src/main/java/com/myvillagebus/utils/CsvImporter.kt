@@ -72,7 +72,8 @@ object CsvImporter {
                 lastUpdate = map["last_update"],
                 minAppVersion = map["min_app_version"],
                 carriersGid = carriersGid,
-                baseUrl = baseUrl
+                baseUrl = baseUrl,
+                appVersionsGid = map["app_versions_gid"]
             )
         } catch (e: Exception) {
             Log.e("CsvImporter", "Błąd parsowania Config", e)

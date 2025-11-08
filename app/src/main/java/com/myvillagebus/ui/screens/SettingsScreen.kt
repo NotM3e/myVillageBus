@@ -1,28 +1,28 @@
 package com.myvillagebus.ui.screens
 
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import com.myvillagebus.ui.viewmodel.BusViewModel
-import android.content.pm.PackageManager
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.foundation.clickable
-import android.content.Intent
-import android.net.Uri
-import androidx.compose.foundation.clickable
-import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.ui.unit.dp
 import com.myvillagebus.BusScheduleApplication
+import com.myvillagebus.ui.viewmodel.BusViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,7 +34,7 @@ fun SettingsScreen(
     LaunchedEffect(Unit) {
         viewModel.refreshSyncInfo()
     }
-    // NOWE: Pobierz wersję aplikacji
+    // Pobierz wersję aplikacji
     val context = LocalContext.current
     val appVersion = remember {
         try {
@@ -48,6 +48,10 @@ fun SettingsScreen(
     val schedulesCount by viewModel.allSchedules.collectAsState()
     val syncStatus by viewModel.syncStatus.collectAsState()
     val isSyncing by viewModel.isSyncing.collectAsState()
+    
+    // Pobierz updateInfo z ViewModel
+    val updateInfo by viewModel.updateInfo.collectAsState()
+    val isCheckingVersion by viewModel.isCheckingVersion.collectAsState()
 
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showForceSyncDialog by remember { mutableStateOf(false) }
@@ -224,6 +228,7 @@ fun SettingsScreen(
                 }
             }
 
+            // Synchronizacja
             Text(
                 text = "Synchronizacja",
                 style = MaterialTheme.typography.titleLarge
@@ -314,6 +319,116 @@ fun SettingsScreen(
                             }
                         )
                     }
+                }
+            }
+
+            Text(
+                text = "Ustawienia aktualizacji",
+                style = MaterialTheme.typography.titleLarge
+            )
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Automatyczne sprawdzanie aktualizacji",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "Sprawdza dostępność nowych wersji przy każdym uruchomieniu aplikacji",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Spacer(Modifier.width(16.dp))
+
+                    var autoCheckEnabled by remember { mutableStateOf(viewModel.versionManager.isAutoCheckEnabled()) }
+
+                    Switch(
+                        checked = autoCheckEnabled,
+                        onCheckedChange = { enabled ->
+                            autoCheckEnabled = enabled
+                            viewModel.versionManager.setAutoCheckEnabled(enabled)
+                        }
+                    )
+                }
+            }
+
+            var hasManuallyChecked by remember { mutableStateOf(false) }
+
+            // Sprawdź aktualizacje
+            OutlinedButton(
+                onClick = {
+                    hasManuallyChecked = true  // ← DODAJ
+                    viewModel.checkAppVersion(configUrl, manualCheck = true)
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isCheckingVersion
+            ) {
+                if (isCheckingVersion) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("Sprawdzanie...")
+                } else {
+                    Icon(Icons.Default.Refresh, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Sprawdź aktualizacje")
+                }
+            }
+
+            // Wynik sprawdzenia (TYLKO jeśli użytkownik kliknął)
+            val updateCheckResult = remember(updateInfo, isCheckingVersion, hasManuallyChecked) {
+                // Pokaż TYLKO jeśli użytkownik kliknął przycisk I sprawdzanie zakończone
+                if (!hasManuallyChecked || isCheckingVersion) {
+                    null  // ← Nie pokazuj jeśli nie kliknął lub trwa sprawdzanie
+                } else {
+                    val info = updateInfo
+                    when {
+                        info == null -> "✅ Aplikacja jest aktualna"
+                        info.isUpdateRequired -> "⚠️ Wymagana aktualizacja do wersji ${info.latestVersion}"
+                        info.isUpdateAvailable -> "🔔 Dostępna wersja ${info.latestVersion}"
+                        else -> null
+                    }
+                }
+            }
+
+            updateCheckResult?.let { message ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = when {
+                            message.contains("✅") -> MaterialTheme.colorScheme.primaryContainer
+                            message.contains("⚠️") -> MaterialTheme.colorScheme.errorContainer
+                            else -> MaterialTheme.colorScheme.tertiaryContainer
+                        }
+                    )
+                ) {
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(12.dp),
+                        color = when {
+                            message.contains("✅") -> MaterialTheme.colorScheme.onPrimaryContainer
+                            message.contains("⚠️") -> MaterialTheme.colorScheme.onErrorContainer
+                            else -> MaterialTheme.colorScheme.onTertiaryContainer
+                        }
+                    )
                 }
             }
 

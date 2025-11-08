@@ -1,6 +1,9 @@
+// 📁 ui/viewmodel/BusViewModel.kt
+
 package com.myvillagebus.ui.viewmodel
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.myvillagebus.BusScheduleApplication
@@ -9,6 +12,7 @@ import com.myvillagebus.data.repository.BusScheduleRepository
 import com.myvillagebus.utils.CarrierVersionManager
 import com.myvillagebus.utils.NetworkUtils
 import com.myvillagebus.utils.PreferencesManager
+import com.myvillagebus.utils.VersionManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -19,9 +23,16 @@ import kotlinx.coroutines.launch
 class BusViewModel(application: Application) : AndroidViewModel(application) {
 
     private val app = getApplication<BusScheduleApplication>()
-    private val repository: BusScheduleRepository = app.repository
 
+    private val repository: BusScheduleRepository = app.repository
     private val preferencesManager: PreferencesManager = app.preferencesManager
+
+    val versionManager: VersionManager = app.versionManager
+
+    // Expose updateInfo z VersionManager
+    val updateInfo = versionManager.updateInfo
+    val isCheckingVersion = versionManager.isChecking
+
     private val carrierVersionManager: CarrierVersionManager = app.carrierVersionManager
     private val _lastSyncVersion = MutableStateFlow<String?>(null)
 
@@ -29,12 +40,12 @@ class BusViewModel(application: Application) : AndroidViewModel(application) {
     private val _lastSyncTime = MutableStateFlow<String?>(null)
     val lastSyncTime: StateFlow<String?> = _lastSyncTime.asStateFlow()
     private val _hoursSinceLastSync = MutableStateFlow<Long>(Long.MAX_VALUE)
-    val hoursSinceLastSync: StateFlow<Long> = _hoursSinceLastSync.asStateFlow(
+    val hoursSinceLastSync: StateFlow<Long> = _hoursSinceLastSync.asStateFlow()
 
-    )
     init {
         refreshSyncInfo()
     }
+
     val allSchedules: StateFlow<List<BusSchedule>> = repository.allSchedules
         .stateIn(
             scope = viewModelScope,
@@ -145,6 +156,12 @@ class BusViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun syncWithGoogleSheets(configUrl: String, forceSync: Boolean = false) {
         viewModelScope.launch {
+            val currentUpdateInfo = updateInfo.value
+            if (currentUpdateInfo != null && !currentUpdateInfo.canSync) {
+                _syncStatus.value = "Synchronizacja wymaga aktualizacji aplikacji do wersji ${currentUpdateInfo.minVersion}"
+                return@launch
+            }
+
             _isSyncing.value = true
             _syncStatus.value = "Sprawdzanie połączenia..."
 
@@ -170,6 +187,30 @@ class BusViewModel(application: Application) : AndroidViewModel(application) {
             }
 
             _isSyncing.value = false
+        }
+    }
+
+    /**
+     * Sprawdza dostępność aktualizacji aplikacji
+     *
+     * @param configUrl URL do arkusza Config
+     * @param manualCheck true jeśli użytkownik kliknął przycisk w ustawieniach
+     */
+    fun checkAppVersion(configUrl: String, manualCheck: Boolean = false) {
+        viewModelScope.launch {
+            val result = versionManager.checkForUpdates(configUrl, manualCheck)
+
+            result.onSuccess { updateInfo ->
+                if (updateInfo != null) {
+                    Log.d("BusViewModel", "Dostępna aktualizacja: ${updateInfo.latestVersion}")
+                } else {
+                    Log.d("BusViewModel", "Aplikacja aktualna")
+                }
+            }
+
+            result.onFailure { error ->
+                Log.e("BusViewModel", "Błąd sprawdzania wersji: ${error.message}")
+            }
         }
     }
 }

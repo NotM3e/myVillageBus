@@ -8,7 +8,8 @@ data class RemoteConfig(
     val lastUpdate: String? = null,
     val minAppVersion: String? = null,
     val carriersGid: String,
-    val baseUrl: String
+    val baseUrl: String,
+    val appVersionsGid: String? = null
 ) {
     /**
      * Buduje pełny URL do arkusza TSV (zalecane - brak problemów z przecinkami)
