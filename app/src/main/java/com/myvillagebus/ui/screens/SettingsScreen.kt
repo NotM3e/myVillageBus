@@ -402,7 +402,7 @@ fun SettingsScreen(
                     when {
                         info == null -> "✅ Aplikacja jest aktualna"
                         info.isUpdateRequired -> "⚠️ Wymagana aktualizacja do wersji ${info.latestVersion}"
-                        info.isUpdateAvailable -> "🔔 Dostępna wersja ${info.latestVersion}"
+                        info.isUpdateAvailable -> "🔔 Dostępna aktualizacja do wersji ${info.latestVersion}"
                         else -> null
                     }
                 }

@@ -27,16 +27,16 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Sprawdź wersję w tle (jeśli włączone w ustawieniach)
+        // Sprawdź wersję w tle (jeśli włączone w ustawieniach I minęło 24h)
         lifecycleScope.launch {
             delay(1000)  // Opóźnienie 1s żeby UI się załadował
 
-            // Sprawdź czy auto-check jest włączony
-            if (viewModel.versionManager.isAutoCheckEnabled()) {
+            if (viewModel.versionManager.shouldCheckForUpdates()) {
                 val configUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSUpEKaD5spMbQ0e_VVj2XI1pxlTbGz6QV5AEvD0HQIM-xDk1yzhWA3yo7zwPjJ8yq9anAJrixPn4WI/pub?gid=0&single=true&output=tsv"
                 viewModel.checkAppVersion(configUrl, manualCheck = false)
+                Log.d("MainActivity", "Auto-check wykonany (minęło ≥24h)")
             } else {
-                Log.d("MainActivity", "Auto-check aktualizacji wyłączony w ustawieniach")
+                Log.d("MainActivity", "Auto-check pominięty (włączony throttling lub wyłączony w ustawieniach)")
             }
         }
 

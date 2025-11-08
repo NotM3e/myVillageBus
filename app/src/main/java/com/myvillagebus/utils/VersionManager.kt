@@ -78,6 +78,7 @@ class VersionManager(private val context: Context) {
 
     companion object {
         private const val KEY_AUTO_CHECK_ENABLED = "auto_check_enabled"
+        private const val KEY_LAST_VERSION_CHECK_TIME = "last_version_check_time"  // ← DODANE
     }
 
     /**
@@ -106,6 +107,38 @@ class VersionManager(private val context: Context) {
     fun setAutoCheckEnabled(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_AUTO_CHECK_ENABLED, enabled).apply()
         Log.d("VersionManager", "Auto-check aktualizacji: ${if (enabled) "włączony" else "wyłączony"}")
+    }
+
+
+    /**
+     * Pobiera timestamp ostatniego sprawdzenia wersji
+     */
+    private fun getLastVersionCheckTime(): Long {
+        return prefs.getLong(KEY_LAST_VERSION_CHECK_TIME, 0)
+    }
+
+    /**
+     * Sprawdza ile godzin minęło od ostatniego sprawdzenia wersji
+     */
+    private fun getHoursSinceLastVersionCheck(): Long {
+        val lastCheck = getLastVersionCheckTime()
+        if (lastCheck == 0L) return Long.MAX_VALUE  // Nigdy nie sprawdzano
+
+        val now = System.currentTimeMillis()
+        val diffMillis = now - lastCheck
+        return diffMillis / (1000 * 60 * 60)  // Konwersja na godziny
+    }
+
+    /**
+     * Sprawdza czy należy wykonać auto-check (24h throttle)
+     */
+    fun shouldCheckForUpdates(): Boolean {
+        val isEnabled = isAutoCheckEnabled()
+        val hoursSinceCheck = getHoursSinceLastVersionCheck()
+
+        Log.d("VersionManager", "Auto-check enabled: $isEnabled, hours since last check: $hoursSinceCheck")
+
+        return isEnabled && hoursSinceCheck >= 24
     }
 
     /**
@@ -157,15 +190,28 @@ class VersionManager(private val context: Context) {
                 forceUpdateMessage = versionData["force_update_msg"]
             )
 
-            // 5. ZAWSZE ustaw updateInfo (nawet jeśli taki sam) - to wymuś rekomponowanie UI
+            // 5. ZAWSZE ustaw updateInfo + zapisz timestamp (tylko dla auto-check)
             if (updateInfo.isUpdateAvailable) {
-                // ← ZMIANA: Stwórz NOWĄ instancję (aby LaunchedEffect wykrył zmianę)
-                _updateInfo.value = updateInfo.copy()  // copy() tworzy nowy obiekt
+                _updateInfo.value = updateInfo.copy()
                 Log.d("VersionManager", "Znaleziono aktualizację: $updateInfo")
+
+                // Zapisz timestamp (tylko dla auto-check)
+                if (!manualCheck) {
+                    prefs.edit().putLong(KEY_LAST_VERSION_CHECK_TIME, System.currentTimeMillis()).apply()
+                    Log.d("VersionManager", "Zapisano timestamp auto-check")
+                }
+
                 Result.success(updateInfo)
             } else {
                 Log.d("VersionManager", "Aplikacja jest aktualna")
                 _updateInfo.value = null
+
+                // Zapisz timestamp (tylko dla auto-check)
+                if (!manualCheck) {
+                    prefs.edit().putLong(KEY_LAST_VERSION_CHECK_TIME, System.currentTimeMillis()).apply()
+                    Log.d("VersionManager", "Zapisano timestamp auto-check")
+                }
+
                 Result.success(null)
             }
 
