@@ -60,7 +60,6 @@ fun SettingsScreen(
 
     val lastSyncVersion by viewModel.lastSyncVersion.collectAsState()
     val lastSyncTime by viewModel.lastSyncTime.collectAsState()
-    val hoursSinceLastSync by viewModel.hoursSinceLastSync.collectAsState()
 
     Scaffold(
         topBar = {
@@ -197,32 +196,10 @@ fun SettingsScreen(
                         ) {
                             Text("Ostatnia synchronizacja:")
                             Text(
-                                text = time,  // OK: zmienna lokalna
+                                text = time,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
-                        }
-
-                        if (hoursSinceLastSync < Long.MAX_VALUE) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("Czas od synchronizacji:")
-                                Text(
-                                    text = when {
-                                        hoursSinceLastSync < 1 -> "Mniej niż godzinę temu"
-                                        hoursSinceLastSync < 24 -> "$hoursSinceLastSync godz. temu"
-                                        else -> "${hoursSinceLastSync / 24} dni temu"
-                                    },
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = when {
-                                        hoursSinceLastSync > 168 -> MaterialTheme.colorScheme.error
-                                        hoursSinceLastSync > 72 -> MaterialTheme.colorScheme.tertiary
-                                        else -> MaterialTheme.colorScheme.onPrimaryContainer
-                                    }
-                                )
-                            }
                         }
                     }
                 }
