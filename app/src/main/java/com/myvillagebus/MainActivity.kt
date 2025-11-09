@@ -16,6 +16,7 @@ import com.myvillagebus.navigation.NavGraph
 import com.myvillagebus.ui.screens.UpdateNotifications
 import com.myvillagebus.ui.theme.BusScheduleTheme
 import com.myvillagebus.ui.viewmodel.BusViewModel
+import com.myvillagebus.utils.AppConstants
 import com.myvillagebus.utils.UpdateInfo
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -29,11 +30,10 @@ class MainActivity : ComponentActivity() {
 
         // Sprawdź wersję w tle (jeśli włączone w ustawieniach I minęło 24h)
         lifecycleScope.launch {
-            delay(1000)  // Opóźnienie 1s żeby UI się załadował
+            delay(1000)
 
             if (viewModel.versionManager.shouldCheckForUpdates()) {
-                val configUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSUpEKaD5spMbQ0e_VVj2XI1pxlTbGz6QV5AEvD0HQIM-xDk1yzhWA3yo7zwPjJ8yq9anAJrixPn4WI/pub?gid=0&single=true&output=tsv"
-                viewModel.checkAppVersion(configUrl, manualCheck = false)
+                viewModel.checkAppVersion(AppConstants.CONFIG_URL, manualCheck = false)
                 Log.d("MainActivity", "Auto-check wykonany (minęło ≥24h)")
             } else {
                 Log.d("MainActivity", "Auto-check pominięty (włączony throttling lub wyłączony w ustawieniach)")
@@ -51,7 +51,6 @@ class MainActivity : ComponentActivity() {
                         viewModel = viewModel
                     )
 
-                    // Pokaż dialogi/snackbary aktualizacji
                     updateInfo?.let { info ->
                         UpdateNotifications(
                             updateInfo = info,

@@ -6,10 +6,11 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.myvillagebus.data.model.BusSchedule
+import com.myvillagebus.utils.AppConstants
 
 @Database(
     entities = [BusSchedule::class],
-    version = 2,  // ← ZWIĘKSZ WERSJĘ z 1 na 2
+    version = 2,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -26,9 +27,9 @@ abstract class BusScheduleDatabase : RoomDatabase() {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     BusScheduleDatabase::class.java,
-                    "bus_schedule_database"
+                    AppConstants.DATABASE_NAME
                 )
-                    .fallbackToDestructiveMigration()  // Usuwa i tworzy od nowa
+                    .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance
                 instance

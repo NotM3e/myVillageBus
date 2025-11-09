@@ -6,9 +6,10 @@ import android.content.SharedPreferences
 class CarrierVersionManager(context: Context) {
 
     private val prefs: SharedPreferences = context.getSharedPreferences(
-        "carrier_versions",
+        AppConstants.PrefsFiles.CARRIER_VERSIONS,
         Context.MODE_PRIVATE
     )
+
 
     /**
      * Zapisz wersję dla konkretnego przewoźnika (jako liczba)
@@ -21,7 +22,7 @@ class CarrierVersionManager(context: Context) {
      * Pobierz wersję dla konkretnego przewoźnika
      */
     fun getCarrierVersion(carrierName: String): Int {
-        return prefs.getInt("version_$carrierName", -1)  // -1 = brak danych
+        return prefs.getInt("version_$carrierName", -1)
     }
 
     /**
@@ -29,12 +30,12 @@ class CarrierVersionManager(context: Context) {
      * @return true jeśli zdalna wersja jest nowsza
      */
     fun needsUpdate(carrierName: String, remoteVersion: Int?): Boolean {
-        if (remoteVersion == null) return false  // Brak wersji zdalnej - nie aktualizuj
+        if (remoteVersion == null) return false
 
         val localVersion = getCarrierVersion(carrierName)
-        if (localVersion == -1) return true  // Brak lokalnej wersji - pobierz
+        if (localVersion == -1) return true
 
-        return remoteVersion > localVersion  // Porównaj liczby: zdalna > lokalna?
+        return remoteVersion > localVersion
     }
 
     /**

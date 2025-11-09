@@ -8,41 +8,36 @@ import java.util.*
 class PreferencesManager(context: Context) {
 
     private val prefs: SharedPreferences = context.getSharedPreferences(
-        "bus_schedule_prefs",
+        AppConstants.PrefsFiles.BUS_SCHEDULE,
         Context.MODE_PRIVATE
     )
-
-    companion object {
-        private const val KEY_LAST_SYNC_VERSION = "last_sync_version"
-        private const val KEY_LAST_SYNC_TIME = "last_sync_time"
-    }
 
     /**
      * Zapisuje wersję ostatniej synchronizacji
      */
     fun saveLastSyncVersion(version: String) {
-        prefs.edit().putString(KEY_LAST_SYNC_VERSION, version).apply()
+        prefs.edit().putString(AppConstants.SyncKeys.LAST_SYNC_VERSION, version).apply()
     }
 
     /**
      * Pobiera wersję ostatniej synchronizacji
      */
     fun getLastSyncVersion(): String? {
-        return prefs.getString(KEY_LAST_SYNC_VERSION, null)
+        return prefs.getString(AppConstants.SyncKeys.LAST_SYNC_VERSION, null)
     }
 
     /**
      * Zapisuje timestamp ostatniej synchronizacji
      */
     fun saveLastSyncTime(timestamp: Long = System.currentTimeMillis()) {
-        prefs.edit().putLong(KEY_LAST_SYNC_TIME, timestamp).apply()
+        prefs.edit().putLong(AppConstants.SyncKeys.LAST_SYNC_TIME, timestamp).apply()
     }
 
     /**
      * Pobiera timestamp ostatniej synchronizacji
      */
     fun getLastSyncTime(): Long {
-        return prefs.getLong(KEY_LAST_SYNC_TIME, 0)
+        return prefs.getLong(AppConstants.SyncKeys.LAST_SYNC_TIME, 0)
     }
 
     /**
@@ -66,7 +61,7 @@ class PreferencesManager(context: Context) {
 
         val now = System.currentTimeMillis()
         val diffMillis = now - lastSync
-        return diffMillis / (1000 * 60 * 60) // Konwersja na godziny
+        return diffMillis / (1000 * 60 * 60)
     }
 
     /**
@@ -74,8 +69,8 @@ class PreferencesManager(context: Context) {
      */
     fun clearSyncData() {
         prefs.edit()
-            .remove(KEY_LAST_SYNC_VERSION)
-            .remove(KEY_LAST_SYNC_TIME)
+            .remove(AppConstants.SyncKeys.LAST_SYNC_VERSION)
+            .remove(AppConstants.SyncKeys.LAST_SYNC_TIME)
             .apply()
     }
 }

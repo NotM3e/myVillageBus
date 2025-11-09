@@ -23,6 +23,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.myvillagebus.BusScheduleApplication
 import com.myvillagebus.ui.viewmodel.BusViewModel
+import com.myvillagebus.utils.AppConstants
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,7 +57,7 @@ fun SettingsScreen(
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showForceSyncDialog by remember { mutableStateOf(false) }
 
-    val configUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSUpEKaD5spMbQ0e_VVj2XI1pxlTbGz6QV5AEvD0HQIM-xDk1yzhWA3yo7zwPjJ8yq9anAJrixPn4WI/pub?gid=0&single=true&output=tsv"
+    val configUrl = AppConstants.CONFIG_URL
 
     val lastSyncVersion by viewModel.lastSyncVersion.collectAsState()
     val lastSyncTime by viewModel.lastSyncTime.collectAsState()

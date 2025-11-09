@@ -68,18 +68,16 @@ data class UpdateInfo(
  */
 class VersionManager(private val context: Context) {
 
-    private val prefs = context.getSharedPreferences("version_prefs", Context.MODE_PRIVATE)
+    private val prefs = context.getSharedPreferences(
+        AppConstants.PrefsFiles.VERSION,
+        Context.MODE_PRIVATE
+    )
 
     private val _updateInfo = MutableStateFlow<UpdateInfo?>(null)
     val updateInfo: StateFlow<UpdateInfo?> = _updateInfo.asStateFlow()
 
     private val _isChecking = MutableStateFlow(false)
     val isChecking: StateFlow<Boolean> = _isChecking.asStateFlow()
-
-    companion object {
-        private const val KEY_AUTO_CHECK_ENABLED = "auto_check_enabled"
-        private const val KEY_LAST_VERSION_CHECK_TIME = "last_version_check_time"  // ← DODANE
-    }
 
     /**
      * Pobiera aktualną wersję aplikacji z build.gradle
@@ -98,23 +96,22 @@ class VersionManager(private val context: Context) {
      * Sprawdza czy auto-check aktualizacji jest włączony
      */
     fun isAutoCheckEnabled(): Boolean {
-        return prefs.getBoolean(KEY_AUTO_CHECK_ENABLED, true)  // Domyślnie włączone
+        return prefs.getBoolean(AppConstants.VersionKeys.AUTO_CHECK_ENABLED, true)
     }
 
     /**
      * Ustawia czy auto-check ma być włączony
      */
     fun setAutoCheckEnabled(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_AUTO_CHECK_ENABLED, enabled).apply()
+        prefs.edit().putBoolean(AppConstants.VersionKeys.AUTO_CHECK_ENABLED, enabled).apply()
         Log.d("VersionManager", "Auto-check aktualizacji: ${if (enabled) "włączony" else "wyłączony"}")
     }
-
 
     /**
      * Pobiera timestamp ostatniego sprawdzenia wersji
      */
     private fun getLastVersionCheckTime(): Long {
-        return prefs.getLong(KEY_LAST_VERSION_CHECK_TIME, 0)
+        return prefs.getLong(AppConstants.VersionKeys.LAST_VERSION_CHECK_TIME, 0)
     }
 
     /**
@@ -122,11 +119,11 @@ class VersionManager(private val context: Context) {
      */
     private fun getHoursSinceLastVersionCheck(): Long {
         val lastCheck = getLastVersionCheckTime()
-        if (lastCheck == 0L) return Long.MAX_VALUE  // Nigdy nie sprawdzano
+        if (lastCheck == 0L) return Long.MAX_VALUE
 
         val now = System.currentTimeMillis()
         val diffMillis = now - lastCheck
-        return diffMillis / (1000 * 60 * 60)  // Konwersja na godziny
+        return diffMillis / (1000 * 60 * 60)
     }
 
     /**
@@ -195,9 +192,8 @@ class VersionManager(private val context: Context) {
                 _updateInfo.value = updateInfo.copy()
                 Log.d("VersionManager", "Znaleziono aktualizację: $updateInfo")
 
-                // Zapisz timestamp (tylko dla auto-check)
                 if (!manualCheck) {
-                    prefs.edit().putLong(KEY_LAST_VERSION_CHECK_TIME, System.currentTimeMillis()).apply()
+                    prefs.edit().putLong(AppConstants.VersionKeys.LAST_VERSION_CHECK_TIME, System.currentTimeMillis()).apply()
                     Log.d("VersionManager", "Zapisano timestamp auto-check")
                 }
 
@@ -206,9 +202,8 @@ class VersionManager(private val context: Context) {
                 Log.d("VersionManager", "Aplikacja jest aktualna")
                 _updateInfo.value = null
 
-                // Zapisz timestamp (tylko dla auto-check)
                 if (!manualCheck) {
-                    prefs.edit().putLong(KEY_LAST_VERSION_CHECK_TIME, System.currentTimeMillis()).apply()
+                    prefs.edit().putLong(AppConstants.VersionKeys.LAST_VERSION_CHECK_TIME, System.currentTimeMillis()).apply()
                     Log.d("VersionManager", "Zapisano timestamp auto-check")
                 }
 
