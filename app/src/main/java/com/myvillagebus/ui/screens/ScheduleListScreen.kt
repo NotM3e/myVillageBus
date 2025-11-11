@@ -47,6 +47,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import java.util.Calendar
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.material.icons.filled.Download
 import java.time.DayOfWeek
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -54,7 +55,8 @@ import java.time.DayOfWeek
 fun ScheduleListScreen(
     schedules: List<BusSchedule>,
     onScheduleClick: (BusSchedule) -> Unit,
-    onSettingsClick: () -> Unit
+    onSettingsClick: () -> Unit,
+    onNavigateToBrowser: () -> Unit
 ) {
     // Stany filtrów
     var selectedCarriers by rememberSaveable { mutableStateOf(setOf<String>()) }
@@ -203,6 +205,14 @@ fun ScheduleListScreen(
             TopAppBar(
                 title = { Text("Rozkład jazdy") },
                 actions = {
+                    // Przycisk do przeglądarki rozkładów
+                    IconButton(onClick = onNavigateToBrowser) {
+                        Icon(
+                            imageVector = Icons.Default.Download,
+                            contentDescription = "Przeglądarka rozkładów"
+                        )
+                    }
+                    // Istniejący: Przycisk do ustawień
                     IconButton(onClick = onSettingsClick) {
                         Icon(
                             imageVector = Icons.Default.Settings,

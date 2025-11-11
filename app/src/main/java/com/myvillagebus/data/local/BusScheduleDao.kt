@@ -62,4 +62,22 @@ interface BusScheduleDao {
     // Usuń rozkłady konkretnego przewoźnika
     @Query("DELETE FROM bus_schedules WHERE carrierName = :carrierName")
     suspend fun deleteSchedulesByCarrier(carrierName: String)
+
+    /**
+     * Pobierz liczbę rozkładów dla danego przewoźnika
+     */
+    @Query("SELECT COUNT(*) FROM bus_schedules WHERE carrierId = :carrierId")
+    suspend fun getSchedulesCountByCarrier(carrierId: String): Int
+
+    /**
+     * Pobierz rozkłady po carrierId (FK)
+     */
+    @Query("SELECT * FROM bus_schedules WHERE carrierId = :carrierId ORDER BY departureTime ASC")
+    fun getSchedulesByCarrierId(carrierId: String): Flow<List<BusSchedule>>
+
+    /**
+     * Usuń rozkłady po carrierId
+     */
+    @Query("DELETE FROM bus_schedules WHERE carrierId = :carrierId")
+    suspend fun deleteSchedulesByCarrierId(carrierId: String)
 }

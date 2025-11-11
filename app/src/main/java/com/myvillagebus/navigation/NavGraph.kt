@@ -8,9 +8,10 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.myvillagebus.ui.screens.CarrierBrowserScreen
 import com.myvillagebus.ui.screens.ScheduleDetailScreen
 import com.myvillagebus.ui.screens.ScheduleListScreen
-import com.myvillagebus.ui.screens.SettingsScreen  // ← DODAJ IMPORT
+import com.myvillagebus.ui.screens.SettingsScreen
 import com.myvillagebus.ui.viewmodel.BusViewModel
 import kotlinx.coroutines.runBlocking
 
@@ -19,7 +20,10 @@ sealed class Screen(val route: String) {
     object ScheduleDetail : Screen("schedule_detail/{scheduleId}") {
         fun createRoute(scheduleId: Int) = "schedule_detail/$scheduleId"
     }
-    object Settings : Screen("settings")  // ← DODAJ
+    object Settings : Screen("settings")
+
+    object CarrierBrowser : Screen("carrier_browser")
+
 }
 
 @Composable
@@ -39,9 +43,13 @@ fun NavGraph(
                 onScheduleClick = { schedule ->
                     navController.navigate(Screen.ScheduleDetail.createRoute(schedule.id))
                 },
-                onSettingsClick = {  // ← DODAJ
+                onSettingsClick = {
                     navController.navigate(Screen.Settings.route)
+                },
+                onNavigateToBrowser = {
+                    navController.navigate(Screen.CarrierBrowser.route)
                 }
+
             )
         }
 
@@ -64,11 +72,18 @@ fun NavGraph(
             }
         }
 
-        // ← DODAJ EKRAN SETTINGS
+        composable(Screen.CarrierBrowser.route) {
+            CarrierBrowserScreen(
+                viewModel = viewModel,
+                onBackClick = { navController.popBackStack() }
+            )
+        }
+
         composable(Screen.Settings.route) {
             SettingsScreen(
                 viewModel = viewModel,
-                onBackClick = { navController.popBackStack() }
+                onBackClick = { navController.popBackStack() },
+                onNavigateToBrowser = { navController.navigate(Screen.CarrierBrowser.route) }
             )
         }
     }

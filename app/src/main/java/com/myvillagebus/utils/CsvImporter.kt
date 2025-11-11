@@ -174,9 +174,10 @@ object CsvImporter {
                     routeStops = stopsString
                 )
 
-                // ZMIANA: Nie rozdzielaj oznaczeń - dodaj jeden rozkład
+                // Nie rozdzielaj oznaczeń - dodaj jeden rozkład
                 schedules.add(
                     BusSchedule(
+                        carrierId = carrierName,
                         carrierName = carrierName,
                         lineDesignation = lineDesignation.ifEmpty { null },
                         designationDescription = designationDescription,

@@ -7,11 +7,17 @@ import com.myvillagebus.utils.CsvImporter
 import com.myvillagebus.utils.PreferencesManager
 import com.myvillagebus.utils.CarrierVersionManager
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
+import com.myvillagebus.data.model.CarrierMetadata
+import com.myvillagebus.data.local.CarrierMetadataDao
 
 class BusScheduleRepository(
     private val dao: BusScheduleDao,
+    private val carrierMetadataDao: CarrierMetadataDao,
     private val preferencesManager: PreferencesManager,
-    private val carrierVersionManager: CarrierVersionManager  // NOWE
+    private val carrierVersionManager: CarrierVersionManager
 ) {
 
     val allSchedules: Flow<List<BusSchedule>> = dao.getAllSchedules()
@@ -158,6 +164,153 @@ class BusScheduleRepository(
 
         } catch (e: Exception) {
             Log.e("Sync", "❌ Błąd synchronizacji: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
+    // Metody dla carrier browser
+    /**
+     * Pobiera wszystkie lokalne metadata przewoźników
+     */
+    suspend fun getAllCarrierMetadata(): List<CarrierMetadata> {
+        return withContext(Dispatchers.IO) {
+            carrierMetadataDao.getAllCarriers().first()
+        }
+    }
+
+    /**
+     * Pobiera rozkłady wybranego przewoźnika
+     */
+    suspend fun downloadCarrier(
+        carrierId: String,
+        configUrl: String
+    ): Result<String> {
+        return try {
+            Log.d("Repository", "Pobieranie przewoźnika: $carrierId")
+
+            // 1. Pobierz Config
+            val config = CsvImporter.getRemoteConfig(configUrl)
+                ?: return Result.failure(Exception("Nie można pobrać Config"))
+
+            // 2. Pobierz Carriers sheet
+            val carriersUrl = config.getCarriersUrl()
+            val carriersCsv = CsvImporter.downloadCsvFromUrl(carriersUrl)
+            val carriers = CsvImporter.parseCarriers(carriersCsv)
+
+            val carrier = carriers.find { it.carrierName == carrierId }
+                ?: return Result.failure(Exception("Przewoźnik '$carrierId' nie znaleziony"))
+
+            if (!carrier.isValid()) {
+                return Result.failure(Exception("Przewoźnik nieaktywny lub nieprawidłowy"))
+            }
+
+            // 3. Pobierz dane przewoźnika
+            val dataUrl = config.buildSheetUrl(carrier.gid, "tsv")
+            val dataCsv = CsvImporter.downloadCsvFromUrl(dataUrl)
+            val schedules = CsvImporter.parseUniversalCsv(dataCsv, carrier.carrierName)
+
+            if (schedules.isEmpty()) {
+                return Result.failure(Exception("Brak rozkładów dla przewoźnika '$carrierId'"))
+            }
+
+            // 4. Zapisz rozkłady
+            dao.insertSchedules(schedules)
+
+            // 5. Zapisz metadata
+            carrierMetadataDao.insertCarrier(
+                CarrierMetadata(
+                    carrierId = carrier.carrierName,
+                    name = carrier.carrierName,
+                    description = carrier.description,
+                    currentVersion = carrier.version ?: 1,
+                    downloadedAt = System.currentTimeMillis(),
+                    isActive = true,
+                    scheduleCount = schedules.size,
+                    sourceGid = carrier.gid
+                )
+            )
+
+            Log.d("Repository", "✅ Pobrano $carrierId: ${schedules.size} rozkładów (v${carrier.version})")
+
+            Result.success("Pobrano ${schedules.size} rozkładów dla $carrierId")
+
+        } catch (e: Exception) {
+            Log.e("Repository", "❌ Błąd pobierania $carrierId", e)
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Aktualizuje rozkłady przewoźnika
+     */
+    suspend fun updateCarrier(
+        carrierId: String,
+        configUrl: String
+    ): Result<String> {
+        return try {
+            Log.d("Repository", "Aktualizowanie przewoźnika: $carrierId")
+
+            // Usuń stare rozkłady i pobierz nowe (reuse downloadCarrier logic)
+            dao.deleteSchedulesByCarrierId(carrierId)
+
+            downloadCarrier(carrierId, configUrl)
+
+        } catch (e: Exception) {
+            Log.e("Repository", "❌ Błąd aktualizacji $carrierId", e)
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Usuwa rozkłady przewoźnika
+     */
+    suspend fun deleteCarrier(carrierId: String): Result<String> {
+        return try {
+            dao.deleteSchedulesByCarrierId(carrierId)
+            carrierMetadataDao.deleteCarrier(carrierId)
+
+            Log.d("Repository", "✅ Usunięto $carrierId")
+
+            Result.success("Usunięto przewoźnika '$carrierId'")
+
+        } catch (e: Exception) {
+            Log.e("Repository", "❌ Błąd usuwania $carrierId", e)
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Przywraca poprzednią wersję przewoźnika (symboliczne - na przyszłość backup)
+     */
+    suspend fun rollbackCarrier(carrierId: String): Result<String> {
+        return try {
+            carrierMetadataDao.rollbackCarrierVersion(carrierId)
+
+            Log.d("Repository", "✅ Przywrócono poprzednią wersję $carrierId")
+
+            Result.success("Przywrócono poprzednią wersję (funkcja w przyszłości będzie pobierać backup)")
+
+        } catch (e: Exception) {
+            Log.e("Repository", "❌ Błąd rollback $carrierId", e)
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Usuwa wszystkich przewoźników
+     */
+    suspend fun deleteAllCarriers(): Result<String> {
+        return try {
+            dao.deleteAllSchedules()
+            carrierMetadataDao.deleteAllCarriers()
+            preferencesManager.clearSyncData()
+
+            Log.d("Repository", "✅ Usunięto wszystkich przewoźników")
+
+            Result.success("Usunięto wszystkich przewoźników")
+
+        } catch (e: Exception) {
+            Log.e("Repository", "❌ Błąd usuwania wszystkich", e)
             Result.failure(e)
         }
     }

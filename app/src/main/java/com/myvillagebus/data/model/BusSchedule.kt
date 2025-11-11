@@ -13,7 +13,9 @@ data class BusSchedule(
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
 
-    val carrierName: String,
+    val carrierId: String,      // FK do CarrierMetadata (np. "PKS-Grudziądz")
+    val carrierName: String,    // Zachowane dla backward compatibility
+
     val departureTime: String,
     val direction: String,
     val lineDesignation: String? = null,
@@ -21,7 +23,7 @@ data class BusSchedule(
     val stopName: String,
     val busLine: String,
 
-    // ← NOWE: Lista dni tygodnia
+    // Lista dni tygodnia
     val operatingDays: List<DayOfWeek> = listOf(
         DayOfWeek.MONDAY,
         DayOfWeek.TUESDAY,

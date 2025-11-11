@@ -18,6 +18,7 @@ class BusScheduleApplication : Application() {
     val repository by lazy {
         BusScheduleRepository(
             dao = database.busScheduleDao(),
+            carrierMetadataDao = database.carrierMetadataDao(),
             preferencesManager = preferencesManager,
             carrierVersionManager = carrierVersionManager
         )
