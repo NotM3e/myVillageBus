@@ -7,14 +7,16 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.myvillagebus.data.model.BusSchedule
 import com.myvillagebus.data.model.CarrierMetadata
+import com.myvillagebus.data.model.Profile
 import com.myvillagebus.utils.AppConstants
 
 @Database(
     entities = [
         BusSchedule::class,
-        CarrierMetadata::class
+        CarrierMetadata::class,
+        Profile::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -22,6 +24,7 @@ abstract class BusScheduleDatabase : RoomDatabase() {
 
     abstract fun busScheduleDao(): BusScheduleDao
     abstract fun carrierMetadataDao(): CarrierMetadataDao
+    abstract fun profileDao(): ProfileDao
 
     companion object {
         @Volatile

@@ -73,4 +73,26 @@ class PreferencesManager(context: Context) {
             .remove(AppConstants.SyncKeys.LAST_SYNC_TIME)
             .apply()
     }
+
+    /**
+     * Zapisz ID ostatnio użytego profilu
+     */
+    fun saveLastUsedProfile(profileId: Int) {
+        prefs.edit().putInt(AppConstants.SyncKeys.LAST_USED_PROFILE, profileId).apply()
+    }
+
+    /**
+     * Pobierz ID ostatnio użytego profilu
+     */
+    fun getLastUsedProfile(): Int? {
+        val id = prefs.getInt(AppConstants.SyncKeys.LAST_USED_PROFILE, -1)
+        return if (id == -1) null else id
+    }
+
+    /**
+     * Wyczyść ostatnio użyty profil
+     */
+    fun clearLastUsedProfile() {
+        prefs.edit().remove(AppConstants.SyncKeys.LAST_USED_PROFILE).apply()
+    }
 }

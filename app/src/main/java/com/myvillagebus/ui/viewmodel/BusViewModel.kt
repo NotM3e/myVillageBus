@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import com.myvillagebus.BusScheduleApplication
 import com.myvillagebus.data.model.BusSchedule
 import com.myvillagebus.data.repository.BusScheduleRepository
+import com.myvillagebus.data.model.Profile
+import com.myvillagebus.data.repository.ProfileRepository
 import com.myvillagebus.utils.CarrierVersionManager
 import com.myvillagebus.utils.NetworkUtils
 import com.myvillagebus.utils.PreferencesManager
@@ -19,6 +21,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import com.myvillagebus.ui.model.CarrierUiModel
 import com.myvillagebus.utils.AppConstants
+
 
 class BusViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -422,5 +425,197 @@ class BusViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun clearCarrierStatus() {
         _carrierOperationStatus.value = null
+    }
+
+    // ========================================
+    // PROFILE MANAGEMENT
+    // ========================================
+
+    private val profileRepository: ProfileRepository = app.profileRepository
+
+    // StateFlows dla profili
+    val allProfiles: StateFlow<List<Profile>> = profileRepository.allProfiles
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    private val _currentProfile = MutableStateFlow<Profile?>(null)
+    val currentProfile: StateFlow<Profile?> = _currentProfile.asStateFlow()
+
+    private val _profileOperationStatus = MutableStateFlow<String?>(null)
+    val profileOperationStatus: StateFlow<String?> = _profileOperationStatus.asStateFlow()
+
+    init {
+        // Załaduj ostatnio użyty profil przy starcie
+        loadLastUsedProfile()
+    }
+
+    /**
+     * Załaduj ostatnio użyty profil z SharedPreferences
+     */
+    private fun loadLastUsedProfile() {
+        viewModelScope.launch {
+            val lastUsedId = preferencesManager.getLastUsedProfile()
+            if (lastUsedId != null) {
+                allProfiles.value.find { it.id == lastUsedId }?.let { profile ->
+                    _currentProfile.value = profile
+                    Log.d("BusViewModel", "Załadowano ostatnio użyty profil: ${profile.name}")
+                }
+            }
+        }
+    }
+
+    /**
+     * Aplikuje profil (zwraca filtry do ustawienia w UI)
+     *
+     * @param profileId ID profilu do aplikowania
+     * @return Map z filtrami lub null jeśli profil nie znaleziony
+     */
+    fun applyProfile(profileId: Int): Map<String, Any?>? {
+        val profile = allProfiles.value.find { it.id == profileId }
+
+        return if (profile != null) {
+            viewModelScope.launch {
+                // Zapisz jako ostatnio użyty
+                preferencesManager.saveLastUsedProfile(profileId)
+                _currentProfile.value = profile
+
+                // Zaktualizuj timestamp w bazie
+                profileRepository.markAsUsed(profileId)
+
+                Log.d("BusViewModel", "Zastosowano profil: ${profile.name}")
+            }
+
+            // Zwróć filtry do ustawienia w UI
+            mapOf(
+                "carriers" to profile.selectedCarriers,
+                "designations" to profile.selectedDesignations,
+                "stops" to profile.selectedStops,
+                "direction" to profile.selectedDirection,
+                "day" to profile.selectedDay
+            )
+        } else {
+            Log.w("BusViewModel", "Profil $profileId nie znaleziony")
+            null
+        }
+    }
+
+    /**
+     * Tworzy nowy profil z aktualnych filtrów
+     *
+     * @param name Nazwa profilu
+     * @param icon Ikona profilu (emoji)
+     * @param filters Mapa filtrów z UI (carriers, designations, stops, direction, day)
+     */
+    fun createProfileFromCurrentFilters(
+        name: String,
+        icon: String,
+        filters: Map<String, Any?>
+    ) {
+        viewModelScope.launch {
+            @Suppress("UNCHECKED_CAST")
+            val profile = Profile(
+                name = name,
+                icon = icon,
+                selectedCarriers = (filters["carriers"] as? Set<String>) ?: emptySet(),
+                selectedDesignations = (filters["designations"] as? Set<String>) ?: emptySet(),
+                selectedStops = (filters["stops"] as? Set<String>) ?: emptySet(),
+                selectedDirection = filters["direction"] as? String,
+                selectedDay = filters["day"] as? java.time.DayOfWeek
+            )
+
+            val result = profileRepository.createProfile(profile)
+
+            result.onSuccess { profileId ->
+                _profileOperationStatus.value = "✅ Utworzono profil '$name'"
+                Log.d("BusViewModel", "Utworzono profil: $name (id=$profileId)")
+            }
+
+            result.onFailure { error ->
+                _profileOperationStatus.value = "❌ Błąd: ${error.message}"
+                Log.e("BusViewModel", "Błąd tworzenia profilu", error)
+            }
+        }
+    }
+
+    /**
+     * Aktualizuje istniejący profil
+     */
+    fun updateProfile(profile: Profile) {
+        viewModelScope.launch {
+            val result = profileRepository.updateProfile(profile)
+
+            result.onSuccess {
+                _profileOperationStatus.value = "✅ Zaktualizowano '${profile.name}'"
+                Log.d("BusViewModel", "Zaktualizowano profil: ${profile.name}")
+            }
+
+            result.onFailure { error ->
+                _profileOperationStatus.value = "❌ Błąd: ${error.message}"
+                Log.e("BusViewModel", "Błąd aktualizacji profilu", error)
+            }
+        }
+    }
+
+    /**
+     * Usuwa profil
+     */
+    fun deleteProfile(profileId: Int) {
+        viewModelScope.launch {
+            val profile = allProfiles.value.find { it.id == profileId }
+
+            if (profile != null) {
+                val result = profileRepository.deleteProfile(profile)
+
+                result.onSuccess {
+                    _profileOperationStatus.value = "✅ Usunięto '${profile.name}'"
+
+                    // Jeśli usunięto aktywny profil, wyczyść currentProfile
+                    if (_currentProfile.value?.id == profileId) {
+                        _currentProfile.value = null
+                        preferencesManager.clearLastUsedProfile()
+                    }
+
+                    Log.d("BusViewModel", "Usunięto profil: ${profile.name}")
+                }
+
+                result.onFailure { error ->
+                    _profileOperationStatus.value = "❌ Błąd: ${error.message}"
+                    Log.e("BusViewModel", "Błąd usuwania profilu", error)
+                }
+            }
+        }
+    }
+
+    /**
+     * Wyczyść status operacji na profilach (dla Snackbar)
+     */
+    fun clearProfileStatus() {
+        _profileOperationStatus.value = null
+    }
+
+    /**
+     * Waliduje nazwę profilu przed zapisaniem
+     */
+    suspend fun validateProfileName(name: String, currentId: Int? = null): String? {
+        return profileRepository.validateProfileName(name, currentId)
+    }
+
+    /**
+     * Sprawdza czy można utworzyć nowy profil (limit 10)
+     */
+    suspend fun canCreateProfile(): Boolean {
+        return profileRepository.canCreateProfile()
+    }
+
+    /**
+     * Wyczyść aktywny profil (używane gdy user ręcznie zmieni filtry)
+     */
+    fun clearCurrentProfile() {
+        _currentProfile.value = null
+        preferencesManager.clearLastUsedProfile()
+        Log.d("BusViewModel", "Wyczyszczono aktywny profil")
     }
 }

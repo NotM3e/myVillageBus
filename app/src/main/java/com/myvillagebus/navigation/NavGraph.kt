@@ -9,6 +9,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.myvillagebus.ui.screens.CarrierBrowserScreen
+import com.myvillagebus.ui.screens.ProfileManagementScreen
 import com.myvillagebus.ui.screens.ScheduleDetailScreen
 import com.myvillagebus.ui.screens.ScheduleListScreen
 import com.myvillagebus.ui.screens.SettingsScreen
@@ -23,6 +24,8 @@ sealed class Screen(val route: String) {
     object Settings : Screen("settings")
 
     object CarrierBrowser : Screen("carrier_browser")
+
+    object ProfileManagement : Screen("profile_management")
 
 }
 
@@ -40,6 +43,7 @@ fun NavGraph(
         composable(Screen.ScheduleList.route) {
             ScheduleListScreen(
                 schedules = schedules,
+                viewModel = viewModel,
                 onScheduleClick = { schedule ->
                     navController.navigate(Screen.ScheduleDetail.createRoute(schedule.id))
                 },
@@ -48,8 +52,10 @@ fun NavGraph(
                 },
                 onNavigateToBrowser = {
                     navController.navigate(Screen.CarrierBrowser.route)
+                },
+                onNavigateToProfileManagement = {
+                    navController.navigate(Screen.ProfileManagement.route)
                 }
-
             )
         }
 
@@ -74,6 +80,13 @@ fun NavGraph(
 
         composable(Screen.CarrierBrowser.route) {
             CarrierBrowserScreen(
+                viewModel = viewModel,
+                onBackClick = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.ProfileManagement.route) {
+            ProfileManagementScreen(
                 viewModel = viewModel,
                 onBackClick = { navController.popBackStack() }
             )

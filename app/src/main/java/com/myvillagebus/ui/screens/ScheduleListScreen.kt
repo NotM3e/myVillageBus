@@ -1,5 +1,6 @@
 package com.myvillagebus.ui.screens
 
+import android.util.Log
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
@@ -28,6 +29,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.unit.dp
 import com.myvillagebus.data.model.BusSchedule
+import com.myvillagebus.data.model.Profile
+import com.myvillagebus.ui.viewmodel.BusViewModel
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.foundation.layout.FlowRow
@@ -44,6 +47,12 @@ import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.rememberDrawerState
+import androidx.compose.runtime.collectAsState
 import kotlinx.coroutines.launch
 import java.util.Calendar
 import androidx.compose.foundation.BorderStroke
@@ -54,9 +63,11 @@ import java.time.DayOfWeek
 @Composable
 fun ScheduleListScreen(
     schedules: List<BusSchedule>,
+    viewModel: BusViewModel,
     onScheduleClick: (BusSchedule) -> Unit,
     onSettingsClick: () -> Unit,
-    onNavigateToBrowser: () -> Unit
+    onNavigateToBrowser: () -> Unit,
+    onNavigateToProfileManagement: () -> Unit
 ) {
     // Stany filtrów
     var selectedCarriers by rememberSaveable { mutableStateOf(setOf<String>()) }
@@ -72,12 +83,79 @@ fun ScheduleListScreen(
     var showDayPickerDialog by remember { mutableStateOf(false) }
     var selectedDay by rememberSaveable { mutableStateOf<DayOfWeek?>(null) }
 
+    // ========================================
+    // PROFILE STATES
+    // ========================================
+
+    val allProfiles by viewModel.allProfiles.collectAsState()
+    val currentProfile by viewModel.currentProfile.collectAsState()
+    val profileStatus by viewModel.profileOperationStatus.collectAsState()
+
+    // Drawer state
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+
+    var showSaveProfileDialog by remember { mutableStateOf(false) }
+
     // LazyListState do kontroli scrollowania
     val listState = rememberLazyListState()
 
     // Snackbar host state
     val snackbarHostState = remember { SnackbarHostState() }
-    val scope = rememberCoroutineScope()
+
+    // ========================================
+    // NOWE: Wyczyść currentProfile po zmianie filtrów
+    // ========================================
+
+    // Zapamiętaj początkowe wartości filtrów (gdy zastosowano profil)
+    val initialFilters = remember(currentProfile) {
+        currentProfile?.let {
+            mapOf(
+                "carriers" to it.selectedCarriers,
+                "designations" to it.selectedDesignations,
+                "stops" to it.selectedStops,
+                "direction" to it.selectedDirection,
+                "day" to it.selectedDay
+            )
+        }
+    }
+
+    // Obserwuj zmiany filtrów i wyczyść currentProfile jeśli się zmieniły
+    LaunchedEffect(
+        selectedCarriers,
+        selectedDesignations,
+        selectedStops,
+        selectedDirection,
+        selectedDay,
+        currentProfile
+    ) {
+        // Sprawdź tylko jeśli jest aktywny profil
+        if (currentProfile != null && initialFilters != null) {
+            val filtersChanged =
+                selectedCarriers != initialFilters["carriers"] ||
+                        selectedDesignations != initialFilters["designations"] ||
+                        selectedStops != initialFilters["stops"] ||
+                        selectedDirection != initialFilters["direction"] ||
+                        selectedDay != initialFilters["day"]
+
+            if (filtersChanged) {
+                // Wyczyść aktywny profil
+                viewModel.clearCurrentProfile()
+                Log.d("ScheduleListScreen", "Filtry zmienione - wyczyszczono aktywny profil")
+            }
+        }
+    }
+
+    // Pokaż Snackbar po operacji na profilu
+    LaunchedEffect(profileStatus) {
+        profileStatus?.let { status ->
+            snackbarHostState.showSnackbar(
+                message = status,
+                duration = SnackbarDuration.Short
+            )
+            viewModel.clearProfileStatus()
+        }
+    }
 
     // Pobierz unikalnych przewoźników
     val carriers = remember(schedules) {
@@ -200,107 +278,95 @@ fun ScheduleListScreen(
             }
         }
     }
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Rozkład jazdy") },
-                actions = {
-                    // Przycisk do przeglądarki rozkładów
-                    IconButton(onClick = onNavigateToBrowser) {
-                        Icon(
-                            imageVector = Icons.Default.Download,
-                            contentDescription = "Przeglądarka rozkładów"
-                        )
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ProfileDrawerContent(
+                profiles = allProfiles,
+                allSchedules = schedules,
+                currentProfileId = currentProfile?.id,
+                onProfileClick = { profileId ->
+                    // Zastosuj profil
+                    viewModel.applyProfile(profileId)?.let { filters ->
+                        selectedCarriers = filters["carriers"] as? Set<String> ?: emptySet()
+                        selectedDesignations = filters["designations"] as? Set<String> ?: emptySet()
+                        selectedStops = filters["stops"] as? Set<String> ?: emptySet()
+                        selectedDirection = filters["direction"] as? String
+                        selectedDay = filters["day"] as? DayOfWeek
                     }
-                    // Istniejący: Przycisk do ustawień
-                    IconButton(onClick = onSettingsClick) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Ustawienia"
-                        )
-                    }
+
+                    // Zamknij drawer
+                    scope.launch { drawerState.close() }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
-                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary
-                )
-            )
-        },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            // Kompaktowy nagłówek filtrów
-            FilterHeader(
-                expanded = filtersExpanded,
-                hasActiveFilters = hasActiveFilters,
-                activeFiltersCount = selectedCarriers.size + selectedDesignations.size +
-                        (if (selectedDirection != null) 1 else 0) + selectedStops.size +
-                        (if (selectedDay != null) 1 else 0),
-                onToggleExpanded = { filtersExpanded = !filtersExpanded },
-                onClearFilters = {
-                    selectedCarriers = setOf()
-                    selectedDesignations = setOf()
-                    selectedDirection = null
-                    selectedStops = setOf()
-                    searchQuery = ""
-                    selectedDay = null
+                onCreateNewClick = {
+                    showSaveProfileDialog = true
+                    scope.launch { drawerState.close() }
+                },
+                onManageClick = {
+                    onNavigateToProfileManagement()
+                    scope.launch { drawerState.close() }
                 }
             )
-
-            AnimatedVisibility(
-                visible = filtersExpanded,
-                enter = expandVertically(
-                    expandFrom = androidx.compose.ui.Alignment.Top
-                ) + fadeIn(
-                    initialAlpha = 0.3f
-                ),
-                exit = shrinkVertically(
-                    shrinkTowards = androidx.compose.ui.Alignment.Top
-                ) + fadeOut()
+        }
+    ) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("Rozkład jazdy") },
+                    navigationIcon = {
+                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                            Icon(Icons.Default.Menu, "Menu profili")
+                        }
+                    },
+                    actions = {
+                        // Przycisk do przeglądarki rozkładów
+                        IconButton(onClick = onNavigateToBrowser) {
+                            Icon(
+                                imageVector = Icons.Default.Download,
+                                contentDescription = "Przeglądarka rozkładów"
+                            )
+                        }
+                        // Istniejący: Przycisk do ustawień
+                        IconButton(onClick = onSettingsClick) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "Ustawienia"
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        titleContentColor = MaterialTheme.colorScheme.onPrimary,
+                        actionIconContentColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                )
+            },
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+            floatingActionButton = {
+                // FAB - pokazuj jeśli są aktywne filtry
+                if (hasActiveFilters) {
+                    FloatingActionButton(
+                        onClick = { showSaveProfileDialog = true },
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                    ) {
+                        Icon(Icons.Default.Add, "Zapisz jako profil")
+                    }
+                }
+            }
+        ) { paddingValues ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
             ) {
-                FilterSection(
-                    carriers = carriers,
-                    designations = designations,
-                    directions = directions,
-                    allStops = allStops,
-                    selectedCarriers = selectedCarriers,
-                    selectedDesignations = selectedDesignations,
-                    selectedDirection = selectedDirection,
-                    selectedStops = selectedStops,
-                    searchQuery = searchQuery,
-                    selectedDay = selectedDay,
-                    onSearchQueryChange = { searchQuery = it },
-                    onCarrierToggle = { carrier ->
-                        selectedCarriers = if (selectedCarriers.contains(carrier)) {
-                            selectedCarriers - carrier
-                        } else {
-                            selectedCarriers + carrier
-                        }
-                    },
-                    onDesignationToggle = { designation ->
-                        selectedDesignations = if (selectedDesignations.contains(designation)) {
-                            selectedDesignations - designation
-                        } else {
-                            selectedDesignations + designation
-                        }
-                    },
-                    onDirectionSelected = { direction ->
-                        selectedDirection = if (selectedDirection == direction) null else direction
-                    },
-                    onStopToggle = { stop ->
-                        selectedStops = if (selectedStops.contains(stop)) {
-                            selectedStops - stop
-                        } else {
-                            selectedStops + stop
-                        }
-                    },
-                    onTimePickerClick = { showTimePickerDialog = true },
-                    onDayPickerClick = { showDayPickerDialog = true },
+                // Kompaktowy nagłówek filtrów
+                FilterHeader(
+                    expanded = filtersExpanded,
+                    hasActiveFilters = hasActiveFilters,
+                    activeFiltersCount = selectedCarriers.size + selectedDesignations.size +
+                            (if (selectedDirection != null) 1 else 0) + selectedStops.size +
+                            (if (selectedDay != null) 1 else 0),
+                    onToggleExpanded = { filtersExpanded = !filtersExpanded },
                     onClearFilters = {
                         selectedCarriers = setOf()
                         selectedDesignations = setOf()
@@ -310,160 +376,236 @@ fun ScheduleListScreen(
                         selectedDay = null
                     }
                 )
-            }
 
-            AnimatedVisibility(
-                visible = !filtersExpanded && hasActiveFilters,
-                enter = expandVertically(
-                    expandFrom = androidx.compose.ui.Alignment.Top
-                ) + fadeIn(),
-                exit = shrinkVertically(
-                    shrinkTowards = androidx.compose.ui.Alignment.Top
-                ) + fadeOut()
-            ) {
-                ActiveFiltersChips(
-                    selectedCarriers = selectedCarriers,
-                    selectedDesignations = selectedDesignations,
-                    selectedDirection = selectedDirection,
-                    selectedStops = selectedStops,
-                    selectedDay = selectedDay,
-                    onRemoveCarrier = { carrier ->
-                        selectedCarriers = selectedCarriers - carrier
-                    },
-                    onRemoveDesignation = { designation ->
-                        selectedDesignations = selectedDesignations - designation
-                    },
-                    onRemoveDirection = { selectedDirection = null },
-                    onRemoveStop = { stop ->
-                        selectedStops = selectedStops - stop
-                    },
-                    onRemoveDay = { selectedDay = null }
-                )
-            }
-            // Informacja o liczbie wyników
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (filteredSchedules.isNotEmpty()) {
-                    Text(
-                        text = "Znaleziono: ${filteredSchedules.size} ${
-                            when {
-                                filteredSchedules.size == 1 -> "odjazd"
-                                filteredSchedules.size < 5 -> "odjazdy"
-                                else -> "odjazdów"
+                AnimatedVisibility(
+                    visible = filtersExpanded,
+                    enter = expandVertically(
+                        expandFrom = androidx.compose.ui.Alignment.Top
+                    ) + fadeIn(
+                        initialAlpha = 0.3f
+                    ),
+                    exit = shrinkVertically(
+                        shrinkTowards = androidx.compose.ui.Alignment.Top
+                    ) + fadeOut()
+                ) {
+                    FilterSection(
+                        carriers = carriers,
+                        designations = designations,
+                        directions = directions,
+                        allStops = allStops,
+                        selectedCarriers = selectedCarriers,
+                        selectedDesignations = selectedDesignations,
+                        selectedDirection = selectedDirection,
+                        selectedStops = selectedStops,
+                        searchQuery = searchQuery,
+                        selectedDay = selectedDay,
+                        onSearchQueryChange = { searchQuery = it },
+                        onCarrierToggle = { carrier ->
+                            selectedCarriers = if (selectedCarriers.contains(carrier)) {
+                                selectedCarriers - carrier
+                            } else {
+                                selectedCarriers + carrier
                             }
-                        }",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                } else {
-                    Text(
-                        text = "Brak wyników",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
+                        },
+                        onDesignationToggle = { designation ->
+                            selectedDesignations = if (selectedDesignations.contains(designation)) {
+                                selectedDesignations - designation
+                            } else {
+                                selectedDesignations + designation
+                            }
+                        },
+                        onDirectionSelected = { direction ->
+                            selectedDirection =
+                                if (selectedDirection == direction) null else direction
+                        },
+                        onStopToggle = { stop ->
+                            selectedStops = if (selectedStops.contains(stop)) {
+                                selectedStops - stop
+                            } else {
+                                selectedStops + stop
+                            }
+                        },
+                        onTimePickerClick = { showTimePickerDialog = true },
+                        onDayPickerClick = { showDayPickerDialog = true },
+                        onClearFilters = {
+                            selectedCarriers = setOf()
+                            selectedDesignations = setOf()
+                            selectedDirection = null
+                            selectedStops = setOf()
+                            searchQuery = ""
+                            selectedDay = null
+                        }
                     )
                 }
-            }
 
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-            // Lista rozkładów
-            if (filteredSchedules.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
+                AnimatedVisibility(
+                    visible = !filtersExpanded && hasActiveFilters,
+                    enter = expandVertically(
+                        expandFrom = androidx.compose.ui.Alignment.Top
+                    ) + fadeIn(),
+                    exit = shrinkVertically(
+                        shrinkTowards = androidx.compose.ui.Alignment.Top
+                    ) + fadeOut()
                 ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
-                        modifier = Modifier.padding(32.dp)
-                    ) {
+                    ActiveFiltersChips(
+                        selectedCarriers = selectedCarriers,
+                        selectedDesignations = selectedDesignations,
+                        selectedDirection = selectedDirection,
+                        selectedStops = selectedStops,
+                        selectedDay = selectedDay,
+                        onRemoveCarrier = { carrier ->
+                            selectedCarriers = selectedCarriers - carrier
+                        },
+                        onRemoveDesignation = { designation ->
+                            selectedDesignations = selectedDesignations - designation
+                        },
+                        onRemoveDirection = { selectedDirection = null },
+                        onRemoveStop = { stop ->
+                            selectedStops = selectedStops - stop
+                        },
+                        onRemoveDay = { selectedDay = null }
+                    )
+                }
+                // Informacja o liczbie wyników
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (filteredSchedules.isNotEmpty()) {
                         Text(
-                            text = "🚌",
-                            style = MaterialTheme.typography.displayLarge
+                            text = "Znaleziono: ${filteredSchedules.size} ${
+                                when {
+                                    filteredSchedules.size == 1 -> "odjazd"
+                                    filteredSchedules.size < 5 -> "odjazdy"
+                                    else -> "odjazdów"
+                                }
+                            }",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Spacer(modifier = Modifier.height(16.dp))
+                    } else {
+                        Text(
+                            text = "Brak wyników",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
 
-                        // Sprawdź czy baza jest w ogóle pusta
-                        if (schedules.isEmpty()) {
-                            // Brak danych w bazie
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+                // Lista rozkładów
+                if (filteredSchedules.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                            modifier = Modifier.padding(32.dp)
+                        ) {
                             Text(
-                                text = "Brak rozkładów",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "Pobierz rozkłady w Ustawieniach",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                text = "🚌",
+                                style = MaterialTheme.typography.displayLarge
                             )
                             Spacer(modifier = Modifier.height(16.dp))
-                            Button(onClick = onSettingsClick) {
-                                Icon(Icons.Default.Settings, contentDescription = null)
-                                Spacer(Modifier.width(8.dp))
-                                Text("Przejdź do Ustawień")
+
+                            // Sprawdź czy baza jest w ogóle pusta
+                            if (schedules.isEmpty()) {
+                                // Brak danych w bazie
+                                Text(
+                                    text = "Brak rozkładów",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "Pobierz rozkłady w Ustawieniach",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Button(onClick = onSettingsClick) {
+                                    Icon(Icons.Default.Settings, contentDescription = null)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Przejdź do Ustawień")
+                                }
+                            } else {
+                                // Są dane, ale filtry je ukrywają
+                                Text(
+                                    text = "Brak odjazdów",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "Spróbuj zmienić filtry",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
-                        } else {
-                            // Są dane, ale filtry je ukrywają
-                            Text(
-                                text = "Brak odjazdów",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "Spróbuj zmienić filtry",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        state = listState,  // ← DODAJ
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(filteredSchedules) { schedule ->
+                            BusScheduleItem(
+                                schedule = schedule,
+                                highlightedStops = selectedStops,
+                                onClick = { onScheduleClick(schedule) }
                             )
                         }
                     }
                 }
-            } else {
-                LazyColumn(
-                    state = listState,  // ← DODAJ
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(filteredSchedules) { schedule ->
-                        BusScheduleItem(
-                            schedule = schedule,
-                            highlightedStops = selectedStops,
-                            onClick = { onScheduleClick(schedule) }
-                        )
-                    }
-                }
             }
-        }
-        // Dialog wyboru dnia
-        if (showDayPickerDialog) {
-            DayPickerDialog(
-                currentSelection = selectedDay,
-                onDismiss = { showDayPickerDialog = false },
-                onDaySelected = { day ->
-                    selectedDay = day
-                    showDayPickerDialog = false
-                },
-                onClear = { selectedDay = null }
-            )
-        }
+            // Dialog wyboru dnia
+            if (showDayPickerDialog) {
+                DayPickerDialog(
+                    currentSelection = selectedDay,
+                    onDismiss = { showDayPickerDialog = false },
+                    onDaySelected = { day ->
+                        selectedDay = day
+                        showDayPickerDialog = false
+                    },
+                    onClear = { selectedDay = null }
+                )
+            }
 
-        // Dialog wyboru godziny
-        if (showTimePickerDialog) {
-            TimePickerDialog(
-                onDismiss = { showTimePickerDialog = false },
-                onConfirm = { hour, minute ->
-                    scrollToTime(hour, minute)
-                    showTimePickerDialog = false
-                }
-            )
+            // Dialog wyboru godziny
+            if (showTimePickerDialog) {
+                TimePickerDialog(
+                    onDismiss = { showTimePickerDialog = false },
+                    onConfirm = { hour, minute ->
+                        scrollToTime(hour, minute)
+                        showTimePickerDialog = false
+                    }
+                )
+            }
+
+            // Dialog zapisywania profilu
+            if (showSaveProfileDialog) {
+                SaveProfileDialog(
+                    currentFilters = mapOf(
+                        "carriers" to selectedCarriers,
+                        "designations" to selectedDesignations,
+                        "stops" to selectedStops,
+                        "direction" to selectedDirection,
+                        "day" to selectedDay
+                    ),
+                    viewModel = viewModel,
+                    onDismiss = { showSaveProfileDialog = false }
+                )
+            }
         }
     }
 }

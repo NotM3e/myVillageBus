@@ -21,10 +21,9 @@ class Converters {
         return gson.fromJson(value, listType)
     }
 
-    // ← NOWE: Konwerter dla List<DayOfWeek>
+    // Konwerter dla List<DayOfWeek>
     @TypeConverter
     fun fromDayOfWeekList(value: List<DayOfWeek>): String {
-        // Zapisujemy jako "MONDAY,TUESDAY,WEDNESDAY,..."
         return value.joinToString(",") { it.name }
     }
 
@@ -37,6 +36,40 @@ class Converters {
             } catch (e: IllegalArgumentException) {
                 null
             }
+        }
+    }
+
+    // ========== PROFILE CONVERTERS ==========
+
+    /**
+     * Konwerter dla Set<String> (carriers, designations, stops w Profile)
+     */
+    @TypeConverter
+    fun fromStringSet(value: Set<String>): String {
+        return value.joinToString(",")
+    }
+
+    @TypeConverter
+    fun toStringSet(value: String): Set<String> {
+        if (value.isBlank()) return emptySet()
+        return value.split(",").map { it.trim() }.toSet()
+    }
+
+    /**
+     * Konwerter dla DayOfWeek? (nullable single value w Profile)
+     */
+    @TypeConverter
+    fun fromDayOfWeekNullable(value: DayOfWeek?): String? {
+        return value?.name
+    }
+
+    @TypeConverter
+    fun toDayOfWeekNullable(value: String?): DayOfWeek? {
+        if (value.isNullOrBlank()) return null
+        return try {
+            DayOfWeek.valueOf(value)
+        } catch (e: IllegalArgumentException) {
+            null
         }
     }
 }

@@ -30,6 +30,7 @@ object AppConstants {
     object SyncKeys {
         const val LAST_SYNC_VERSION = "last_sync_version"
         const val LAST_SYNC_TIME = "last_sync_time"
+        const val LAST_USED_PROFILE = "last_used_profile"
     }
 
     /**
