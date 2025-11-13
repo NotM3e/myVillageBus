@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -64,10 +65,21 @@ class MainActivity : ComponentActivity() {
 
     private fun openDownloadUrl(url: String) {
         try {
+            if (url.isBlank()) {
+                Toast.makeText(this, "❌ Brak adresu URL", Toast.LENGTH_SHORT).show()
+                return
+            }
+
             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
             startActivity(intent)
         } catch (e: Exception) {
             Log.e("MainActivity", "Nie można otworzyć URL: $url", e)
+
+            Toast.makeText(
+                this,
+                "❌ Nie można otworzyć linku do pobrania",
+                Toast.LENGTH_LONG
+            ).show()
         }
     }
 }

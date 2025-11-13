@@ -25,9 +25,28 @@ fun calculateMinutesUntil(departureTime: String): Int? {
 
         var diff = (departure.timeInMillis - now.timeInMillis) / (60 * 1000)
 
-        // Jeśli ujemne (przeszłość), dodaj 24h (zakładamy że to następny dzień)
-        if (diff < 0) {
-            diff += 24 * 60  // +1440 minut
+        // ← POPRAWIONE: Obsługa midnight + edge case
+        when {
+            // Przypadek 1: Rozkład w przyszłości (dzisiaj)
+            diff >= 0 && diff < 12 * 60 -> {
+                // OK, normalny odjazd za X minut
+            }
+
+            // Przypadek 2: Rozkład już był (dzisiaj) - pokaż jako przeszłość
+            diff < 0 && diff > -12 * 60 -> {
+                // Rozkład był np. 30 minut temu - nie pokazuj "za 23h 30min"
+                return null  // ← Zwróć null (nie pokazuj licznika)
+            }
+
+            // Przypadek 3: Rozkład jest jutro (przejście przez północ)
+            diff < 0 -> {
+                diff += 24 * 60  // +1440 minut
+            }
+
+            // Przypadek 4: Rozkład jest za >12h (jutro rano)
+            diff >= 12 * 60 -> {
+                // OK, pokazuj "za Xh Ymin"
+            }
         }
 
         diff.toInt()

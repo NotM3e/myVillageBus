@@ -205,30 +205,28 @@ fun ScheduleListScreen(
     }
 
     // Filtrowanie rozkładów
-    val filteredSchedules = remember(schedules, selectedCarriers, selectedDesignations, selectedDirection, selectedStops, selectedDay) {
-        schedules.filter { schedule ->
-            // ← OR: Kurs od któregokolwiek wybranego przewoźnika
-            val matchesCarrier = selectedCarriers.isEmpty() || selectedCarriers.contains(schedule.carrierName)
+    val filteredSchedules by remember {
+        derivedStateOf {
+            schedules.filter { schedule ->
+                val matchesCarrier = selectedCarriers.isEmpty() || selectedCarriers.contains(schedule.carrierName)
 
-            // ← AND: Kurs musi mieć WSZYSTKIE wybrane oznaczenia
-            val matchesDesignation = selectedDesignations.isEmpty() ||
-                    selectedDesignations.all { designation ->
-                        schedule.lineDesignation?.split(",")?.map { it.trim() }?.contains(designation) == true
-                    }
+                val matchesDesignation = selectedDesignations.isEmpty() ||
+                        selectedDesignations.all { designation ->
+                            schedule.lineDesignation?.split(",")?.map { it.trim() }?.contains(designation) == true
+                        }
 
-            // ← Single-select
-            val matchesDirection = selectedDirection == null || schedule.direction == selectedDirection
+                val matchesDirection = selectedDirection == null || schedule.direction == selectedDirection
 
-            // ← OR: Kurs jedzie przez którykolwiek wybrany przystanek
-            val matchesStop = selectedStops.isEmpty() ||
-                    selectedStops.any { stop ->
-                        schedule.stops.any { it.stopName == stop }
-                    }
+                val matchesStop = selectedStops.isEmpty() ||
+                        selectedStops.any { stop ->
+                            schedule.stops.any { it.stopName == stop }
+                        }
 
-            val matchesDay = selectedDay?.let { schedule.operatesOn(it) } ?: true
+                val matchesDay = selectedDay?.let { schedule.operatesOn(it) } ?: true
 
-            matchesCarrier && matchesDesignation && matchesDirection && matchesStop && matchesDay
-        }.sortedBy { it.departureTime }
+                matchesCarrier && matchesDesignation && matchesDirection && matchesStop && matchesDay
+            }.sortedBy { it.departureTime }
+        }
     }
 
     val hasActiveFilters = selectedCarriers.isNotEmpty() || selectedDesignations.isNotEmpty() ||

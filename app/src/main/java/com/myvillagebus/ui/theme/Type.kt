@@ -1,4 +1,4 @@
-package com.example.myvillagebus.ui.theme
+package com.myvillagebus.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle

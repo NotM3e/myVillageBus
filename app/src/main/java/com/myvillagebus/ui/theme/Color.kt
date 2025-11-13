@@ -1,4 +1,4 @@
-package com.example.myvillagebus.ui.theme
+package com.myvillagebus.ui.theme
 
 import androidx.compose.ui.graphics.Color
 

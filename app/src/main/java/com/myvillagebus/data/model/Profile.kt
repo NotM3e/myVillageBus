@@ -1,5 +1,7 @@
+// 📁 data/model/Profile.kt
 package com.myvillagebus.data.model
 
+import android.util.Log
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import java.time.DayOfWeek
@@ -34,12 +36,29 @@ data class Profile(
     val lastUsedAt: Long? = null  // Ostatnie użycie (dla sortowania)
 ) {
 
+    // Cache dla wydajności (nie zapisywany w Room, tylko w RAM)
+    @delegate:Transient
+    private val _matchingSchedulesCache by lazy {
+        mutableMapOf<Int, Int>()  // scheduleListHashCode → count
+    }
+
     /**
      * Zwraca liczbę rozkładów pasujących do filtrów profilu
      * UWAGA: Wymaga przekazania wszystkich rozkładów z ViewModel
+     *
+     * ← POPRAWIONE: Dodano cache (hash list rozkładów → count)
      */
     fun getMatchingSchedulesCount(allSchedules: List<BusSchedule>): Int {
-        return allSchedules.count { schedule ->
+        // Cache key = hashCode listy rozkładów
+        val cacheKey = allSchedules.hashCode()
+
+        // Sprawdź cache
+        _matchingSchedulesCache[cacheKey]?.let { cachedCount ->
+            return cachedCount
+        }
+
+        // Oblicz na nowo
+        val count = allSchedules.count { schedule ->
             val matchesCarrier = selectedCarriers.isEmpty() || selectedCarriers.contains(schedule.carrierName)
             val matchesDesignation = selectedDesignations.isEmpty() ||
                     selectedDesignations.all { designation ->
@@ -54,6 +73,17 @@ data class Profile(
 
             matchesCarrier && matchesDesignation && matchesStop && matchesDirection && matchesDay
         }
+
+        // Zapisz w cache
+        _matchingSchedulesCache[cacheKey] = count
+
+        _matchingSchedulesCache[cacheKey]?.let { cachedCount ->
+            Log.d("Profile", "Cache hit dla ${this.name}: $cachedCount")
+            return cachedCount
+        }
+        Log.d("Profile", "Cache miss dla ${this.name}, obliczam...")
+
+        return count
     }
 
     companion object {
