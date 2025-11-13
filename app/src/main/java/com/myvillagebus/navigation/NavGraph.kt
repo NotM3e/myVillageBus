@@ -34,15 +34,12 @@ fun NavGraph(
     navController: NavHostController,
     viewModel: BusViewModel
 ) {
-    val schedules by viewModel.allSchedules.collectAsState()
-
     NavHost(
         navController = navController,
         startDestination = Screen.ScheduleList.route
     ) {
         composable(Screen.ScheduleList.route) {
             ScheduleListScreen(
-                schedules = schedules,
                 viewModel = viewModel,
                 onScheduleClick = { schedule ->
                     navController.navigate(Screen.ScheduleDetail.createRoute(schedule.id))

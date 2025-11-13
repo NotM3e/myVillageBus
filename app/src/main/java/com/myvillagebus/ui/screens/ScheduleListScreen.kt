@@ -62,13 +62,14 @@ import java.time.DayOfWeek
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ScheduleListScreen(
-    schedules: List<BusSchedule>,
     viewModel: BusViewModel,
     onScheduleClick: (BusSchedule) -> Unit,
     onSettingsClick: () -> Unit,
     onNavigateToBrowser: () -> Unit,
     onNavigateToProfileManagement: () -> Unit
 ) {
+    val schedules by viewModel.allSchedules.collectAsState()
+
     // Stany filtrów
     var selectedCarriers by rememberSaveable { mutableStateOf(setOf<String>()) }
     var selectedDesignations by rememberSaveable { mutableStateOf(setOf<String>()) }
