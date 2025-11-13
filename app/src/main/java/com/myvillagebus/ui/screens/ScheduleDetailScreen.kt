@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.FlowRow
 import java.time.DayOfWeek
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import com.myvillagebus.utils.calculateMinutesUntil
+import com.myvillagebus.utils.rememberDebouncedClick
 
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -29,6 +30,9 @@ fun ScheduleDetailScreen(
     schedule: BusSchedule,
     onBackClick: () -> Unit
 ) {
+    // Debounced back click
+    val debouncedBackClick = rememberDebouncedClick(onClick = onBackClick)
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -55,7 +59,7 @@ fun ScheduleDetailScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBackClick) {
+                    IconButton(onClick = debouncedBackClick) {
                         Icon(
                             imageVector = Icons.Default.ArrowBack,
                             contentDescription = "Wróć"
