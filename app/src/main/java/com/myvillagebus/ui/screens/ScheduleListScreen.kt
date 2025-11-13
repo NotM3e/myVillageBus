@@ -1,6 +1,5 @@
 package com.myvillagebus.ui.screens
 
-import android.util.Log
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalAnimationApi
@@ -29,7 +28,6 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.unit.dp
 import com.myvillagebus.data.model.BusSchedule
-import com.myvillagebus.data.model.Profile
 import com.myvillagebus.ui.viewmodel.BusViewModel
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.material.icons.filled.Settings
@@ -73,21 +71,15 @@ fun ScheduleListScreen(
     // Stany filtrów
     var selectedCarriers by rememberSaveable { mutableStateOf(setOf<String>()) }
     var selectedDesignations by rememberSaveable { mutableStateOf(setOf<String>()) }
-    var selectedDirection by rememberSaveable { mutableStateOf<String?>(null) }  // Single-select, others is Multi-select
+    var selectedDirection by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedStops by rememberSaveable { mutableStateOf(setOf<String>()) }
-
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var filtersExpanded by rememberSaveable { mutableStateOf(false) }
-
-    // Stan dialogu wyboru godziny i dnia
     var showTimePickerDialog by remember { mutableStateOf(false) }
     var showDayPickerDialog by remember { mutableStateOf(false) }
     var selectedDay by rememberSaveable { mutableStateOf<DayOfWeek?>(null) }
 
-    // ========================================
-    // PROFILE STATES
-    // ========================================
-
+    // Profile states
     val allProfiles by viewModel.allProfiles.collectAsState()
     val currentProfile by viewModel.currentProfile.collectAsState()
     val profileStatus by viewModel.profileOperationStatus.collectAsState()
@@ -95,18 +87,9 @@ fun ScheduleListScreen(
     // Drawer state
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
-
     var showSaveProfileDialog by remember { mutableStateOf(false) }
-
-    // LazyListState do kontroli scrollowania
     val listState = rememberLazyListState()
-
-    // Snackbar host state
     val snackbarHostState = remember { SnackbarHostState() }
-
-    // ========================================
-    // NOWE: Wyczyść currentProfile po zmianie filtrów
-    // ========================================
 
     // Zapamiętaj początkowe wartości filtrów (gdy zastosowano profil)
     val initialFilters = remember(currentProfile) {
@@ -130,7 +113,6 @@ fun ScheduleListScreen(
         selectedDay,
         currentProfile
     ) {
-        // Sprawdź tylko jeśli jest aktywny profil
         if (currentProfile != null && initialFilters != null) {
             val filtersChanged =
                 selectedCarriers != initialFilters["carriers"] ||
@@ -140,9 +122,7 @@ fun ScheduleListScreen(
                         selectedDay != initialFilters["day"]
 
             if (filtersChanged) {
-                // Wyczyść aktywny profil
                 viewModel.clearCurrentProfile()
-                Log.d("ScheduleListScreen", "Filtry zmienione - wyczyszczono aktywny profil")
             }
         }
     }
@@ -166,9 +146,9 @@ fun ScheduleListScreen(
     // Pobierz unikalne oznaczenia linii
     val designations = remember(schedules, selectedCarriers) {
         schedules
-            .filter { selectedCarriers.isEmpty() || selectedCarriers.contains(it.carrierName) }  // ← OR logic
+            .filter { selectedCarriers.isEmpty() || selectedCarriers.contains(it.carrierName) }
             .mapNotNull { it.lineDesignation }
-            .flatMap { it.split(",").map { d -> d.trim() } }  // ← Rozdziel wielokrotne oznaczenia
+            .flatMap { it.split(",").map { d -> d.trim() } }
             .distinct()
             .sorted()
     }
@@ -210,19 +190,15 @@ fun ScheduleListScreen(
         derivedStateOf {
             schedules.filter { schedule ->
                 val matchesCarrier = selectedCarriers.isEmpty() || selectedCarriers.contains(schedule.carrierName)
-
                 val matchesDesignation = selectedDesignations.isEmpty() ||
                         selectedDesignations.all { designation ->
                             schedule.lineDesignation?.split(",")?.map { it.trim() }?.contains(designation) == true
                         }
-
                 val matchesDirection = selectedDirection == null || schedule.direction == selectedDirection
-
                 val matchesStop = selectedStops.isEmpty() ||
                         selectedStops.any { stop ->
                             schedule.stops.any { it.stopName == stop }
                         }
-
                 val matchesDay = selectedDay?.let { schedule.operatesOn(it) } ?: true
 
                 matchesCarrier && matchesDesignation && matchesDirection && matchesStop && matchesDay
@@ -250,18 +226,14 @@ fun ScheduleListScreen(
     fun scrollToTime(hour: Int, minute: Int) {
         scope.launch {
             val selectedTimeMinutes = hour * 60 + minute
-
-            // Znajdź pierwszy rozkład >= wybranej godziny
             val targetIndex = filteredSchedules.indexOfFirst { schedule ->
-                val scheduleMinutes = parseTimeToMinutes(schedule.departureTime)  // ← Teraz działa!
+                val scheduleMinutes = parseTimeToMinutes(schedule.departureTime)
                 scheduleMinutes >= selectedTimeMinutes
             }
 
             if (targetIndex != -1) {
-                // Znaleziono - scroll do rozkładu
                 listState.animateScrollToItem(targetIndex)
             } else {
-                // Brak rozkładów po wybranej godzinie - scroll do ostatniego
                 if (filteredSchedules.isNotEmpty()) {
                     listState.animateScrollToItem(filteredSchedules.lastIndex)
                     snackbarHostState.showSnackbar(
@@ -277,6 +249,7 @@ fun ScheduleListScreen(
             }
         }
     }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
@@ -285,7 +258,6 @@ fun ScheduleListScreen(
                 allSchedules = schedules,
                 currentProfileId = currentProfile?.id,
                 onProfileClick = { profileId ->
-                    // Zastosuj profil
                     viewModel.applyProfile(profileId)?.let { filters ->
                         selectedCarriers = filters["carriers"] as? Set<String> ?: emptySet()
                         selectedDesignations = filters["designations"] as? Set<String> ?: emptySet()
@@ -293,8 +265,6 @@ fun ScheduleListScreen(
                         selectedDirection = filters["direction"] as? String
                         selectedDay = filters["day"] as? DayOfWeek
                     }
-
-                    // Zamknij drawer
                     scope.launch { drawerState.close() }
                 },
                 onCreateNewClick = {
@@ -318,19 +288,11 @@ fun ScheduleListScreen(
                         }
                     },
                     actions = {
-                        // Przycisk do przeglądarki rozkładów
                         IconButton(onClick = onNavigateToBrowser) {
-                            Icon(
-                                imageVector = Icons.Default.Download,
-                                contentDescription = "Przeglądarka rozkładów"
-                            )
+                            Icon(Icons.Default.Download, "Przeglądarka rozkładów")
                         }
-                        // Istniejący: Przycisk do ustawień
                         IconButton(onClick = onSettingsClick) {
-                            Icon(
-                                imageVector = Icons.Default.Settings,
-                                contentDescription = "Ustawienia"
-                            )
+                            Icon(Icons.Default.Settings, "Ustawienia")
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -342,7 +304,6 @@ fun ScheduleListScreen(
             },
             snackbarHost = { SnackbarHost(snackbarHostState) },
             floatingActionButton = {
-                // FAB - pokazuj jeśli są aktywne filtry
                 if (hasActiveFilters) {
                     FloatingActionButton(
                         onClick = { showSaveProfileDialog = true },
@@ -358,7 +319,6 @@ fun ScheduleListScreen(
                     .fillMaxSize()
                     .padding(paddingValues)
             ) {
-                // Kompaktowy nagłówek filtrów
                 FilterHeader(
                     expanded = filtersExpanded,
                     hasActiveFilters = hasActiveFilters,
@@ -378,14 +338,8 @@ fun ScheduleListScreen(
 
                 AnimatedVisibility(
                     visible = filtersExpanded,
-                    enter = expandVertically(
-                        expandFrom = androidx.compose.ui.Alignment.Top
-                    ) + fadeIn(
-                        initialAlpha = 0.3f
-                    ),
-                    exit = shrinkVertically(
-                        shrinkTowards = androidx.compose.ui.Alignment.Top
-                    ) + fadeOut()
+                    enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(initialAlpha = 0.3f),
+                    exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut()
                 ) {
                     FilterSection(
                         carriers = carriers,
@@ -414,8 +368,7 @@ fun ScheduleListScreen(
                             }
                         },
                         onDirectionSelected = { direction ->
-                            selectedDirection =
-                                if (selectedDirection == direction) null else direction
+                            selectedDirection = if (selectedDirection == direction) null else direction
                         },
                         onStopToggle = { stop ->
                             selectedStops = if (selectedStops.contains(stop)) {
@@ -439,12 +392,8 @@ fun ScheduleListScreen(
 
                 AnimatedVisibility(
                     visible = !filtersExpanded && hasActiveFilters,
-                    enter = expandVertically(
-                        expandFrom = androidx.compose.ui.Alignment.Top
-                    ) + fadeIn(),
-                    exit = shrinkVertically(
-                        shrinkTowards = androidx.compose.ui.Alignment.Top
-                    ) + fadeOut()
+                    enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+                    exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut()
                 ) {
                     ActiveFiltersChips(
                         selectedCarriers = selectedCarriers,
@@ -452,20 +401,14 @@ fun ScheduleListScreen(
                         selectedDirection = selectedDirection,
                         selectedStops = selectedStops,
                         selectedDay = selectedDay,
-                        onRemoveCarrier = { carrier ->
-                            selectedCarriers = selectedCarriers - carrier
-                        },
-                        onRemoveDesignation = { designation ->
-                            selectedDesignations = selectedDesignations - designation
-                        },
+                        onRemoveCarrier = { carrier -> selectedCarriers = selectedCarriers - carrier },
+                        onRemoveDesignation = { designation -> selectedDesignations = selectedDesignations - designation },
                         onRemoveDirection = { selectedDirection = null },
-                        onRemoveStop = { stop ->
-                            selectedStops = selectedStops - stop
-                        },
+                        onRemoveStop = { stop -> selectedStops = selectedStops - stop },
                         onRemoveDay = { selectedDay = null }
                     )
                 }
-                // Informacja o liczbie wyników
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -496,7 +439,6 @@ fun ScheduleListScreen(
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
-                // Lista rozkładów
                 if (filteredSchedules.isEmpty()) {
                     Box(
                         modifier = Modifier.fillMaxSize(),
@@ -507,15 +449,10 @@ fun ScheduleListScreen(
                             verticalArrangement = Arrangement.Center,
                             modifier = Modifier.padding(32.dp)
                         ) {
-                            Text(
-                                text = "🚌",
-                                style = MaterialTheme.typography.displayLarge
-                            )
+                            Text(text = "🚌", style = MaterialTheme.typography.displayLarge)
                             Spacer(modifier = Modifier.height(16.dp))
 
-                            // Sprawdź czy baza jest w ogóle pusta
                             if (schedules.isEmpty()) {
-                                // Brak danych w bazie
                                 Text(
                                     text = "Brak rozkładów",
                                     style = MaterialTheme.typography.titleMedium,
@@ -535,7 +472,6 @@ fun ScheduleListScreen(
                                     Text("Przejdź do Ustawień")
                                 }
                             } else {
-                                // Są dane, ale filtry je ukrywają
                                 Text(
                                     text = "Brak odjazdów",
                                     style = MaterialTheme.typography.titleMedium,
@@ -552,7 +488,7 @@ fun ScheduleListScreen(
                     }
                 } else {
                     LazyColumn(
-                        state = listState,  // ← DODAJ
+                        state = listState,
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -567,7 +503,7 @@ fun ScheduleListScreen(
                     }
                 }
             }
-            // Dialog wyboru dnia
+
             if (showDayPickerDialog) {
                 DayPickerDialog(
                     currentSelection = selectedDay,
@@ -580,7 +516,6 @@ fun ScheduleListScreen(
                 )
             }
 
-            // Dialog wyboru godziny
             if (showTimePickerDialog) {
                 TimePickerDialog(
                     onDismiss = { showTimePickerDialog = false },
@@ -591,7 +526,6 @@ fun ScheduleListScreen(
                 )
             }
 
-            // Dialog zapisywania profilu
             if (showSaveProfileDialog) {
                 SaveProfileDialog(
                     currentFilters = mapOf(

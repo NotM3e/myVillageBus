@@ -22,7 +22,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.myvillagebus.ui.viewmodel.BusViewModel
 import com.myvillagebus.utils.AppConstants
-import com.myvillagebus.utils.rememberDebouncedClick
 
 /**
  * Ekran ustawień aplikacji
@@ -35,9 +34,6 @@ fun SettingsScreen(
     onBackClick: () -> Unit,
     onNavigateToBrowser: () -> Unit = {}  // Callback do nawigacji do przeglądarki
 ) {
-    // Debounced back click
-    val debouncedBackClick = rememberDebouncedClick(onClick = onBackClick)
-
     // Odśwież metadane synchronizacji przy wejściu na ekran
     LaunchedEffect(Unit) {
         viewModel.refreshSyncInfo()
@@ -67,7 +63,7 @@ fun SettingsScreen(
             TopAppBar(
                 title = { Text("Ustawienia") },
                 navigationIcon = {
-                    IconButton(onClick = debouncedBackClick) {
+                    IconButton(onClick = onBackClick) {
                         Icon(Icons.Default.ArrowBack, "Wróć")
                     }
                 },

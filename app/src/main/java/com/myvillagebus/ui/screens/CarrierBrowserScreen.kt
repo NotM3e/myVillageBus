@@ -64,7 +64,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.myvillagebus.ui.model.CarrierUiModel
 import com.myvillagebus.ui.viewmodel.BusViewModel
-import com.myvillagebus.utils.rememberDebouncedClick
 
 enum class BrowserTab {
     ALL, DOWNLOADED, AVAILABLE
@@ -76,9 +75,6 @@ fun CarrierBrowserScreen(
     viewModel: BusViewModel,
     onBackClick: () -> Unit
 ) {
-    // Debounced back click
-    val debouncedBackClick = rememberDebouncedClick(onClick = onBackClick)
-
     // States
     val availableCarriers by viewModel.availableCarriers.collectAsState()
     val downloadedCarriers by viewModel.downloadedCarriers.collectAsState()
@@ -112,7 +108,7 @@ fun CarrierBrowserScreen(
             TopAppBar(
                 title = { Text("Przeglądarka rozkładów") },
                 navigationIcon = {
-                    IconButton(onClick = debouncedBackClick) {
+                    IconButton(onClick = onBackClick) {
                         Icon(Icons.Default.ArrowBack, "Wróć")
                     }
                 },

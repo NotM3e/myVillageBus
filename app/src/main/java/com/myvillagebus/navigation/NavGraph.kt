@@ -1,8 +1,11 @@
 package com.myvillagebus.navigation
 
+import android.util.Log
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -22,11 +25,8 @@ sealed class Screen(val route: String) {
         fun createRoute(scheduleId: Int) = "schedule_detail/$scheduleId"
     }
     object Settings : Screen("settings")
-
     object CarrierBrowser : Screen("carrier_browser")
-
     object ProfileManagement : Screen("profile_management")
-
 }
 
 @Composable
@@ -34,6 +34,49 @@ fun NavGraph(
     navController: NavHostController,
     viewModel: BusViewModel
 ) {
+    // ✅ GLOBAL navigation lock (shared across all screens)
+    var lastNavigationTime by remember { mutableStateOf(0L) }
+    val navigationDebounceMs = 500L
+
+    // Safe navigation wrapper
+    val safeNavigate: (String) -> Unit = remember {
+        { route ->
+            val currentTime = System.currentTimeMillis()
+            val timeSinceLastNav = currentTime - lastNavigationTime
+
+            if (timeSinceLastNav >= navigationDebounceMs) {
+                Log.d("NavGraph", "✅ Navigation allowed to: $route (${timeSinceLastNav}ms since last)")
+                lastNavigationTime = currentTime
+                navController.navigate(route)
+            } else {
+                Log.d("NavGraph", "⚠️ Navigation BLOCKED to: $route (only ${timeSinceLastNav}ms since last, need ${navigationDebounceMs}ms)")
+            }
+        }
+    }
+
+    // Safe back navigation wrapper
+    val safePopBackStack: () -> Unit = remember {
+        {
+            val currentTime = System.currentTimeMillis()
+            val timeSinceLastNav = currentTime - lastNavigationTime
+
+            if (timeSinceLastNav >= navigationDebounceMs) {
+                Log.d("NavGraph", "✅ Pop back allowed (${timeSinceLastNav}ms since last)")
+                lastNavigationTime = currentTime
+
+                // Additional safety: check if can pop
+                if (navController.currentBackStackEntry != null &&
+                    navController.previousBackStackEntry != null) {
+                    navController.popBackStack()
+                } else {
+                    Log.d("NavGraph", "⚠️ Cannot pop - already at start destination")
+                }
+            } else {
+                Log.d("NavGraph", "⚠️ Pop back BLOCKED (only ${timeSinceLastNav}ms since last, need ${navigationDebounceMs}ms)")
+            }
+        }
+    }
+
     NavHost(
         navController = navController,
         startDestination = Screen.ScheduleList.route
@@ -42,16 +85,16 @@ fun NavGraph(
             ScheduleListScreen(
                 viewModel = viewModel,
                 onScheduleClick = { schedule ->
-                    navController.navigate(Screen.ScheduleDetail.createRoute(schedule.id))
+                    safeNavigate(Screen.ScheduleDetail.createRoute(schedule.id))
                 },
                 onSettingsClick = {
-                    navController.navigate(Screen.Settings.route)
+                    safeNavigate(Screen.Settings.route)
                 },
                 onNavigateToBrowser = {
-                    navController.navigate(Screen.CarrierBrowser.route)
+                    safeNavigate(Screen.CarrierBrowser.route)
                 },
                 onNavigateToProfileManagement = {
-                    navController.navigate(Screen.ProfileManagement.route)
+                    safeNavigate(Screen.ProfileManagement.route)
                 }
             )
         }
@@ -70,7 +113,7 @@ fun NavGraph(
             schedule?.let {
                 ScheduleDetailScreen(
                     schedule = it,
-                    onBackClick = { navController.popBackStack() }
+                    onBackClick = safePopBackStack
                 )
             }
         }
@@ -78,22 +121,24 @@ fun NavGraph(
         composable(Screen.CarrierBrowser.route) {
             CarrierBrowserScreen(
                 viewModel = viewModel,
-                onBackClick = { navController.popBackStack() }
+                onBackClick = safePopBackStack
             )
         }
 
         composable(Screen.ProfileManagement.route) {
             ProfileManagementScreen(
                 viewModel = viewModel,
-                onBackClick = { navController.popBackStack() }
+                onBackClick = safePopBackStack
             )
         }
 
         composable(Screen.Settings.route) {
             SettingsScreen(
                 viewModel = viewModel,
-                onBackClick = { navController.popBackStack() },
-                onNavigateToBrowser = { navController.navigate(Screen.CarrierBrowser.route) }
+                onBackClick = safePopBackStack,
+                onNavigateToBrowser = {
+                    safeNavigate(Screen.CarrierBrowser.route)
+                }
             )
         }
     }

@@ -13,7 +13,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.myvillagebus.data.model.Profile
 import com.myvillagebus.ui.viewmodel.BusViewModel
-import com.myvillagebus.utils.rememberDebouncedClick
 
 /**
  * Ekran zarządzania profilami - fullscreen
@@ -24,8 +23,6 @@ fun ProfileManagementScreen(
     viewModel: BusViewModel,
     onBackClick: () -> Unit
 ) {
-    // Debounced back click
-    val debouncedBackClick = rememberDebouncedClick(onClick = onBackClick)
 
     val allProfiles by viewModel.allProfiles.collectAsState()
     val profileStatus by viewModel.profileOperationStatus.collectAsState()
@@ -53,7 +50,7 @@ fun ProfileManagementScreen(
             TopAppBar(
                 title = { Text("Zarządzaj profilami") },
                 navigationIcon = {
-                    IconButton(onClick = debouncedBackClick) {
+                    IconButton(onClick = onBackClick) {
                         Icon(Icons.Default.ArrowBack, "Wróć")
                     }
                 },
