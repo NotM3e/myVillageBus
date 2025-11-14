@@ -46,7 +46,7 @@ fun ForceUpdateDialog(
     updateInfo: UpdateInfo,
     onDownload: () -> Unit
 ) {
-    var showDialog by remember { mutableStateOf(true) }
+    var showDialog by remember(updateInfo.timestamp) { mutableStateOf(true) }
 
     if (showDialog) {
         AlertDialog(
