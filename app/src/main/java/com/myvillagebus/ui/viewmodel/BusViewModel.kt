@@ -260,10 +260,8 @@ class BusViewModel(application: Application) : AndroidViewModel(application) {
                 val merged = remoteCarriers.map { remote ->
                     val local = localMap[remote.carrierName]
                     if (local != null) {
-                        // Przewoźnik pobrany - użyj metadata + zdalna wersja
                         com.myvillagebus.ui.model.CarrierUiModel.fromMetadata(local, remote.version)
                     } else {
-                        // Przewoźnik dostępny - użyj zdalnego info
                         com.myvillagebus.ui.model.CarrierUiModel.fromRemoteInfo(remote)
                     }
                 }
@@ -272,11 +270,52 @@ class BusViewModel(application: Application) : AndroidViewModel(application) {
                 _downloadedCarriers.value = merged.filter { it.isDownloaded }
                 _carrierOperationStatus.value = null
 
-                Log.d("BusViewModel", "Załadowano ${merged.size} przewoźników (${_downloadedCarriers.value.size} pobranych)")
+                Log.d("BusViewModel", "✅ Załadowano ${merged.size} przewoźników (${_downloadedCarriers.value.size} pobranych)")
 
             } catch (e: Exception) {
-                Log.e("BusViewModel", "Błąd ładowania przewoźników", e)
-                _carrierOperationStatus.value = "Błąd: ${e.message}"
+                Log.e("BusViewModel", "⚠️ Błąd połączenia - próba trybu offline", e)
+
+                // FALLBACK: Tryb offline - pokaż tylko pobrane przewoźniki
+                try {
+                    val localMetadata = repository.getAllCarrierMetadata()
+
+                    if (localMetadata.isNotEmpty()) {
+                        // Mamy lokalne dane - pokaż je
+                        _availableCarriers.value = emptyList()  // Brak zdalnych przewoźników
+                        _downloadedCarriers.value = localMetadata.map { metadata ->
+                            com.myvillagebus.ui.model.CarrierUiModel.fromMetadata(
+                                metadata = metadata,
+                                remoteVersion = null  // Brak informacji o aktualizacjach (offline)
+                            )
+                        }
+
+                        _carrierOperationStatus.value = "⚠️ Tryb offline - pokazano ${localMetadata.size} ${
+                            when {
+                                localMetadata.size == 1 -> "pobranego przewoźnika"
+                                localMetadata.size < 5 -> "pobranych przewoźników"
+                                else -> "pobranych przewoźników"
+                            }
+                        }"
+
+                        Log.d("BusViewModel", "📴 Tryb offline: załadowano ${localMetadata.size} lokalnych przewoźników")
+
+                    } else {
+                        // Brak lokalnych danych
+                        _availableCarriers.value = emptyList()
+                        _downloadedCarriers.value = emptyList()
+                        _carrierOperationStatus.value = "❌ Brak połączenia z internetem. Pobierz rozkłady gdy będziesz online."
+
+                        Log.d("BusViewModel", "📴 Tryb offline: brak lokalnych danych")
+                    }
+
+                } catch (offlineError: Exception) {
+                    // Nawet Room nie działa (ekstremalny przypadek)
+                    Log.e("BusViewModel", "💥 Krytyczny błąd (offline fallback failed)", offlineError)
+                    _carrierOperationStatus.value = "Błąd: ${e.message}"
+                    _availableCarriers.value = emptyList()
+                    _downloadedCarriers.value = emptyList()
+                }
+
             } finally {
                 _isLoadingCarriers.value = false
             }
