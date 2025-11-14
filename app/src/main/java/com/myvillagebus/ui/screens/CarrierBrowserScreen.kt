@@ -64,6 +64,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.myvillagebus.ui.model.CarrierUiModel
 import com.myvillagebus.ui.viewmodel.BusViewModel
+import androidx.compose.material.icons.filled.WifiOff
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import kotlinx.coroutines.delay
 
 enum class BrowserTab {
     ALL, DOWNLOADED, AVAILABLE
@@ -259,6 +266,57 @@ fun CarrierBrowserScreen(
                 modifier = Modifier.padding(16.dp)
             )
 
+            // Offline Banner
+            val isOfflineMode = remember(downloadedCarriers, availableCarriers) {
+                downloadedCarriers.isNotEmpty() &&
+                        downloadedCarriers.all { it.remoteVersion == null }
+            }
+
+            AnimatedVisibility(
+                visible = isOfflineMode,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    color = MaterialTheme.colorScheme.tertiaryContainer,
+                    shape = MaterialTheme.shapes.medium
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.WifiOff,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(
+                                text = "📴 Tryb offline",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                            Text(
+                                text = "Pokazano ${downloadedCarriers.size} ${
+                                    when {
+                                        downloadedCarriers.size == 1 -> "pobranego przewoźnika"
+                                        downloadedCarriers.size < 5 -> "pobranych przewoźników"
+                                        else -> "pobranych przewoźników"
+                                    }
+                                }. Połącz się z internetem aby sprawdzić aktualizacje.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
+                            )
+                        }
+                    }
+                }
+            }
+
             // Tab Row
             TabRow(selectedTabIndex = selectedTab.ordinal) {
                 Tab(
@@ -309,6 +367,7 @@ fun CarrierBrowserScreen(
                         items(filteredCarriers, key = { it.id }) { carrier ->
                             CarrierCard(
                                 carrier = carrier,
+                                operationStatus = operationStatus,
                                 onDownload = { viewModel.downloadCarrier(it) },
                                 onUpdate = { viewModel.updateCarrier(it) },
                                 onDelete = { viewModel.deleteCarrier(it) },
@@ -428,6 +487,7 @@ fun EmptyState(
 @Composable
 fun CarrierCard(
     carrier: CarrierUiModel,
+    operationStatus: String?,
     onDownload: (String) -> Unit,
     onUpdate: (String) -> Unit,
     onDelete: (String) -> Unit,
@@ -435,6 +495,26 @@ fun CarrierCard(
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
     var isOperating by remember { mutableStateOf(false) }
+
+    // Reset loading gdy pojawi się status operacji (błąd lub sukces)
+    LaunchedEffect(operationStatus) {
+        if (operationStatus != null &&
+            (operationStatus.contains("Błąd", ignoreCase = true) ||
+                    operationStatus.contains("Zaktualizowano", ignoreCase = true) ||
+                    operationStatus.contains("Pobrano", ignoreCase = true) ||
+                    operationStatus.contains("Usunięto", ignoreCase = true))) {
+            isOperating = false
+        }
+    }
+
+    // Safety timeout - auto-reset po 10s
+    LaunchedEffect(isOperating) {
+        if (isOperating) {
+            delay(10000)
+            isOperating = false
+        }
+    }
+
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -478,7 +558,8 @@ fun CarrierCard(
 
                 StatusBadge(
                     isDownloaded = carrier.isDownloaded,
-                    hasUpdate = carrier.hasUpdate
+                    hasUpdate = carrier.hasUpdate,
+                    isOffline = carrier.isDownloaded && carrier.remoteVersion == null
                 )
             }
 
@@ -553,30 +634,44 @@ fun CarrierCard(
                             }
                         }
                     } else {
-                        // Update Button (if available)
+// Update Button (if available)
                         if (carrier.hasUpdate) {
-                            Button(
-                                onClick = {
-                                    isOperating = true
-                                    onUpdate(carrier.id)
-                                },
-                                enabled = !isOperating,
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.tertiary
-                                )
-                            ) {
-                                if (isOperating) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(18.dp),
-                                        strokeWidth = 2.dp,
-                                        color = MaterialTheme.colorScheme.onTertiary
+                            val isOffline = carrier.remoteVersion == null
+
+                            Column(horizontalAlignment = Alignment.End) {
+                                Button(
+                                    onClick = {
+                                        isOperating = true
+                                        onUpdate(carrier.id)
+                                    },
+                                    enabled = !isOperating && !isOffline,
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.tertiary,
+                                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant
                                     )
-                                    Spacer(Modifier.width(4.dp))
-                                    Text("Aktualizowanie...")
-                                } else {
-                                    Icon(Icons.Default.Refresh, null, Modifier.size(18.dp))
-                                    Spacer(Modifier.width(4.dp))
-                                    Text("Aktualizuj")
+                                ) {
+                                    if (isOperating) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(18.dp),
+                                            strokeWidth = 2.dp,
+                                            color = MaterialTheme.colorScheme.onTertiary
+                                        )
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Aktualizowanie...")
+                                    } else {
+                                        Icon(Icons.Default.Refresh, null, Modifier.size(18.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Aktualizuj")
+                                    }
+                                }
+
+                                if (isOffline) {
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        text = "Wymaga internetu",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                    )
                                 }
                             }
                         }
@@ -612,11 +707,6 @@ fun CarrierCard(
                 }
             }
         }
-    }
-
-    // ← DODANE: Reset loading state gdy operacja zakończona
-    LaunchedEffect(carrier.isDownloaded, carrier.currentVersion) {
-        isOperating = false
     }
 
     // Delete Confirmation Dialog (bez zmian)
@@ -657,11 +747,13 @@ fun CarrierCard(
 @Composable
 fun StatusBadge(
     isDownloaded: Boolean,
-    hasUpdate: Boolean
+    hasUpdate: Boolean,
+    isOffline: Boolean = false
 ) {
     Surface(
         shape = MaterialTheme.shapes.small,
         color = when {
+            isOffline -> MaterialTheme.colorScheme.surfaceVariant
             hasUpdate -> MaterialTheme.colorScheme.tertiaryContainer
             isDownloaded -> MaterialTheme.colorScheme.primaryContainer
             else -> MaterialTheme.colorScheme.secondaryContainer
@@ -673,6 +765,7 @@ fun StatusBadge(
         ) {
             Text(
                 text = when {
+                    isOffline -> "📴"
                     hasUpdate -> "🔔"
                     isDownloaded -> "✓"
                     else -> "📥"
@@ -682,12 +775,14 @@ fun StatusBadge(
             Spacer(Modifier.width(4.dp))
             Text(
                 text = when {
+                    isOffline -> "OFFLINE"
                     hasUpdate -> "AKTUALIZACJA"
                     isDownloaded -> "POBRANE"
                     else -> "DOSTĘPNE"
                 },
                 style = MaterialTheme.typography.labelSmall,
                 color = when {
+                    isOffline -> MaterialTheme.colorScheme.onSurfaceVariant
                     hasUpdate -> MaterialTheme.colorScheme.onTertiaryContainer
                     isDownloaded -> MaterialTheme.colorScheme.onPrimaryContainer
                     else -> MaterialTheme.colorScheme.onSecondaryContainer
