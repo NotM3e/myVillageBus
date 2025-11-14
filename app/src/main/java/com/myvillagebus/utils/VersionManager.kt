@@ -50,7 +50,6 @@ data class UpdateInfo(
     val currentVersion: Version,
     val downloadUrl: String,
     val updateMessage: String? = null,
-    val forceUpdateMessage: String? = null,
     val timestamp: Long = System.currentTimeMillis()
 ) {
     val isUpdateAvailable: Boolean
@@ -184,7 +183,6 @@ class VersionManager(private val context: Context) {
                 currentVersion = currentVersion,
                 downloadUrl = versionData["download_url"] ?: "",
                 updateMessage = versionData["update_message"],
-                forceUpdateMessage = versionData["force_update_msg"]
             )
 
             // 5. ZAWSZE ustaw updateInfo + zapisz timestamp (tylko dla auto-check)

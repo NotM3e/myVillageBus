@@ -86,24 +86,11 @@ fun ForceUpdateDialog(
                     HorizontalDivider()
 
                     Text(
-                        text = updateInfo.forceUpdateMessage
-                            ?: "Synchronizacja rozkładów jest wyłączona. Zaktualizuj aplikację aby móc pobierać nowe rozkłady.",
+                        text = updateInfo.updateMessage
+                            ?: "Zaktualizuj aplikację aby móc pobierać nowe rozkłady.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-
-                    updateInfo.updateMessage?.let { message ->
-                        Surface(
-                            shape = MaterialTheme.shapes.small,
-                            color = MaterialTheme.colorScheme.primaryContainer
-                        ) {
-                            Text(
-                                text = message,
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.padding(8.dp)
-                            )
-                        }
-                    }
                 }
             },
             confirmButton = {
