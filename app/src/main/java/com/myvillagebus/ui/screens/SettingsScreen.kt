@@ -301,7 +301,7 @@ fun SettingsScreen(
                     HorizontalDivider()
 
                     // Link do GitHub
-                    /*
+                    // *
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -339,16 +339,16 @@ fun SettingsScreen(
                             )
                         }
                     }
-                    */
+                    // */
 
-                    /* Linki
+                    //* Linki
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
                                 val intent = Intent(
                                     Intent.ACTION_VIEW,
-                                    Uri.parse("https://twojastrona.pl")
+                                    Uri.parse("https://wsiobus.pl")
                                 )
                                 context.startActivity(intent)
                             },
@@ -362,12 +362,12 @@ fun SettingsScreen(
                         ) {
                             Column {
                                 Text(
-                                    text = "🌐 Odwiedź moją stronę",
+                                    text = "🌐 Strona internetowa projektu",
                                     style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.primary
                                 )
                                 Text(
-                                    text = "twojastrona.pl",
+                                    text = "wsiobus.pl",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -379,7 +379,7 @@ fun SettingsScreen(
                             )
                         }
                     }
-                    */
+                    // */
 
                     // Disclaimer
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
