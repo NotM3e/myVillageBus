@@ -377,6 +377,16 @@ fun ScheduleListScreen(
                                 selectedStops + stop
                             }
                         },
+                        onNowClick = {
+                            // Ustaw dzisiejszy dzień
+                            selectedDay = BusSchedule.getCurrentDayOfWeek()
+
+                            // Pobierz aktualną godzinę i scrolluj
+                            val calendar = Calendar.getInstance()
+                            val currentHour = calendar.get(Calendar.HOUR_OF_DAY)
+                            val currentMinute = calendar.get(Calendar.MINUTE)
+                            scrollToTime(currentHour, currentMinute)
+                        },
                         onTimePickerClick = { showTimePickerDialog = true },
                         onDayPickerClick = { showDayPickerDialog = true },
                         onClearFilters = {
@@ -558,7 +568,7 @@ fun FilterHeader(
         label = "arrow_rotation"
     )
 
-    // ← Animowana przezroczystość przycisku
+    //  Animowana przezroczystość przycisku
     val clearButtonAlpha by animateFloatAsState(
         targetValue = if (hasActiveFilters) 1f else 0f,
         label = "clear_button_alpha"
@@ -575,7 +585,7 @@ fun FilterHeader(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp)  // ← Stała wysokość
+                .height(56.dp)  //  Stała wysokość
                 .clickable(onClick = onToggleExpanded)
                 .padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -622,8 +632,8 @@ fun FilterHeader(
             TextButton(
                 onClick = onClearFilters,
                 contentPadding = PaddingValues(horizontal = 8.dp),
-                enabled = hasActiveFilters,  // ← Wyłączony gdy brak filtrów
-                modifier = Modifier.alpha(clearButtonAlpha)  // ← Animowana przezroczystość
+                enabled = hasActiveFilters,  //  Wyłączony gdy brak filtrów
+                modifier = Modifier.alpha(clearButtonAlpha)  //  Animowana przezroczystość
             ) {
                 Icon(
                     imageVector = Icons.Default.Clear,
@@ -654,7 +664,7 @@ fun ActiveFiltersChips(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        // ← MULTI: Przewoźnicy
+        //  MULTI: Przewoźnicy
         items(selectedCarriers.toList()) { carrier ->
             AnimatedVisibility(
                 visible = true,
@@ -676,7 +686,7 @@ fun ActiveFiltersChips(
             }
         }
 
-        // ← MULTI: Oznaczenia
+        //  MULTI: Oznaczenia
         items(selectedDesignations.toList()) { designation ->
             AnimatedVisibility(
                 visible = true,
@@ -701,7 +711,7 @@ fun ActiveFiltersChips(
             }
         }
 
-        // ← MULTI: Przystanki
+        //  MULTI: Przystanki
         items(selectedStops.toList()) { stop ->
             AnimatedVisibility(
                 visible = true,
@@ -747,7 +757,7 @@ fun ActiveFiltersChips(
             }
         }
 
-        // ← SINGLE: Kierunek
+        //  SINGLE: Kierunek
         selectedDirection?.let { direction ->
             item {
                 AnimatedVisibility(
@@ -791,6 +801,7 @@ fun FilterSection(
     onDesignationToggle: (String) -> Unit,
     onDirectionSelected: (String) -> Unit,
     onStopToggle: (String) -> Unit,
+    onNowClick: () -> Unit,
     onTimePickerClick: () -> Unit,
     onDayPickerClick: () -> Unit,
     onClearFilters: () -> Unit
@@ -798,7 +809,7 @@ fun FilterSection(
     Column(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-// ← FlowRow z przyciskami
+//  FlowRow z przyciskami
         FlowRow(
             modifier = Modifier
                 .fillMaxWidth()
@@ -806,6 +817,24 @@ fun FilterSection(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
+            // Przycisk "Teraz"
+            FilterChip(
+                selected = false,
+                onClick = onNowClick,
+                label = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text("⚡")
+                        Text("Teraz")
+                    }
+                },
+                colors = FilterChipDefaults.filterChipColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    labelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            )
             // Przycisk "Wybór Dnia"
             FilterChip(
                 selected = selectedDay != null,
@@ -872,7 +901,7 @@ fun FilterSection(
                         leadingIcon = if (selectedCarriers.contains(carrier)) {
                             {
                                 Icon(
-                                    imageVector = Icons.Default.Check,  // ← Checkmark zamiast X
+                                    imageVector = Icons.Default.Check,  // Checkmark zamiast X
                                     contentDescription = "Wybrano",
                                     modifier = Modifier.size(18.dp)
                                 )
@@ -1038,7 +1067,7 @@ fun FilterSection(
 @Composable
 fun BusScheduleItem(
     schedule: BusSchedule,
-    highlightedStops: Set<String> = emptySet(),  // ← MULTI
+    highlightedStops: Set<String> = emptySet(),  //  MULTI
     onClick: () -> Unit
 ) {
     val minutesUntil = calculateMinutesUntil(schedule.departureTime)
@@ -1046,7 +1075,7 @@ fun BusScheduleItem(
             highlightedStops.any { stop ->
                 schedule.stops.any { it.stopName == stop }
             }
-    val operatesToday = schedule.operatesToday()  // ← NOWE
+    val operatesToday = schedule.operatesToday()
 
     Card(
         modifier = Modifier
@@ -1056,7 +1085,7 @@ fun BusScheduleItem(
         colors = CardDefaults.cardColors(
             containerColor = when {
                 hasHighlightedStop -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                !operatesToday -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)  // ← NOWE: przygaszony jeśli nie dziś
+                !operatesToday -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)  // przygaszony jeśli nie dziś
                 else -> MaterialTheme.colorScheme.surface
             }
         )
@@ -1142,7 +1171,7 @@ fun BusScheduleItem(
                 }
                 */
 
-                // ← NOWE: Dni kursu
+                // Dni kursu
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(top = 4.dp)
@@ -1243,7 +1272,7 @@ fun BusScheduleItem(
     }
 }
 
-// ← NOWA FUNKCJA: Kolory dla różnych oznaczeń
+// Kolory dla różnych oznaczeń
 @Composable
 fun getDesignationColor(designation: String): androidx.compose.ui.graphics.Color {
     // Specjalne przypadki
