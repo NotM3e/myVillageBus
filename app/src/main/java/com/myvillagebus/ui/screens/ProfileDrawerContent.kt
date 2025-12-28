@@ -38,13 +38,13 @@ fun ProfileDrawerContent(
         ) {
             Column {
                 Text(
-                    text = "👤 Moje Profile",
+                    text = "💾 Zapisane filtry",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = "${profiles.size}/${Profile.MAX_PROFILES} profili",
+                    text = "${profiles.size}/${Profile.MAX_PROFILES} zapisanych filtrów",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -71,11 +71,11 @@ fun ProfileDrawerContent(
                         style = MaterialTheme.typography.displayMedium
                     )
                     Text(
-                        text = "Brak profili",
+                        text = "Brak zapisanych filtrów",
                         style = MaterialTheme.typography.titleMedium
                     )
                     Text(
-                        text = "Utwórz pierwszy profil",
+                        text = "Utwórz pierwszy filtr",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -107,7 +107,7 @@ fun ProfileDrawerContent(
             // Nowy profil
             NavigationDrawerItem(
                 icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                label = { Text("Nowy profil") },
+                label = { Text("Nowy filtr") },
                 selected = false,
                 onClick = onCreateNewClick,
                 colors = NavigationDrawerItemDefaults.colors(
@@ -118,7 +118,7 @@ fun ProfileDrawerContent(
             // Zarządzaj profilami
             NavigationDrawerItem(
                 icon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                label = { Text("Zarządzaj profilami") },
+                label = { Text("Zarządzaj filtrami") },
                 selected = false,
                 onClick = onManageClick
             )

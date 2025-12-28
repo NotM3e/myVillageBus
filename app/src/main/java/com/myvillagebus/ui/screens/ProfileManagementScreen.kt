@@ -48,7 +48,7 @@ fun ProfileManagementScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Zarządzaj profilami") },
+                title = { Text("Zarządzaj filtrami") },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(Icons.Default.ArrowBack, "Wróć")
@@ -81,11 +81,11 @@ fun ProfileManagementScreen(
                         style = MaterialTheme.typography.displayLarge
                     )
                     Text(
-                        text = "Brak profili",
+                        text = "Brak zapisanych filtrów",
                         style = MaterialTheme.typography.titleLarge
                     )
                     Text(
-                        text = "Utworz profile w głównym ekranie",
+                        text = "Utwórz filtry w głównym ekranie",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -121,7 +121,7 @@ fun ProfileManagementScreen(
                                 )
                                 Spacer(Modifier.height(4.dp))
                                 Text(
-                                    text = "Liczba profili: ${allProfiles.size}/${Profile.MAX_PROFILES}",
+                                    text = "Zapisanych filtrów: ${allProfiles.size}/${Profile.MAX_PROFILES}",
                                     style = MaterialTheme.typography.bodySmall
                                 )
                             }
@@ -188,9 +188,9 @@ fun ProfileManagementScreen(
                     modifier = Modifier.size(32.dp)
                 )
             },
-            title = { Text("Usuń profil?") },
+            title = { Text("Usuń zapisany filtr?") },
             text = {
-                Text("Czy na pewno chcesz usunąć profil '${profileToDelete!!.name}'? Ta operacja jest nieodwracalna.")
+                Text("Czy na pewno chcesz usunąć filtr '${profileToDelete!!.name}'? Ta operacja jest nieodwracalna.")
             },
             confirmButton = {
                 TextButton(

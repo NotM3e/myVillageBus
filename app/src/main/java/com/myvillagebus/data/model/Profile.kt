@@ -6,8 +6,8 @@ import androidx.room.PrimaryKey
 import java.time.DayOfWeek
 
 /**
- * Profil użytkownika zawierający zapisane filtry
- * Maksymalnie 10 profili per użytkownik
+ * Profil użytkownika zawierający zapisane filtry   -> profil = zapisany filtr
+ * Maksymalnie 10 profili per użytkownik            -> profil = zapisany filtr
  */
 @Entity(tableName = "profiles")
 data class Profile(

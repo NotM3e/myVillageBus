@@ -76,7 +76,7 @@ fun SaveProfileDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text("💾 Zapisz jako profil")
+            Text("💾 Zapisz jako filtr")
         },
         text = {
             Column(
@@ -92,7 +92,7 @@ fun SaveProfileDialog(
                             validationError = null
                         }
                     },
-                    label = { Text("Nazwa profilu") },
+                    label = { Text("Nazwa filtru") },
                     placeholder = { Text("np. SZKOŁA, PRACA, DOM") },
                     isError = validationError != null,
                     supportingText = {
@@ -226,7 +226,7 @@ fun SaveProfileDialog(
 
                         // Sprawdź limit profili
                         if (!viewModel.canCreateProfile()) {
-                            validationError = "Maksymalnie ${Profile.MAX_PROFILES} profili"
+                            validationError = "Maksymalnie ${Profile.MAX_PROFILES} filtrów"
                             isSaving = false
                             return@launch
                         }

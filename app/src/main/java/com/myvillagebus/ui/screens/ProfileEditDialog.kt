@@ -69,7 +69,7 @@ fun ProfileEditDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text("✏️ Edytuj profil")
+            Text("✏️ Edytuj filtr")
         },
         text = {
             Column(
@@ -85,7 +85,7 @@ fun ProfileEditDialog(
                             validationError = null
                         }
                     },
-                    label = { Text("Nazwa profilu") },
+                    label = { Text("Nazwa filtru") },
                     isError = validationError != null,
                     supportingText = {
                         if (validationError != null) {

@@ -284,7 +284,7 @@ fun ScheduleListScreen(
                     title = { Text("Rozkład jazdy") },
                     navigationIcon = {
                         IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(Icons.Default.Menu, "Menu profili")
+                            Icon(Icons.Default.Menu, "Menu zapisanych filtrów")
                         }
                     },
                     actions = {
