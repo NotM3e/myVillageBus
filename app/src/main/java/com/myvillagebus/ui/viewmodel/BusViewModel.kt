@@ -480,6 +480,27 @@ class BusViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
+     * Usuwa wszystkie zapisane filtry (profile)
+     */
+    fun deleteAllProfiles() {
+        viewModelScope.launch {
+            val result = profileRepository.deleteAllProfiles()
+
+            result.onSuccess {
+                _currentProfile.value = null
+                preferencesManager.clearLastUsedProfile()
+                _profileOperationStatus.value = "Usunięto wszystkie zapisane filtry"
+                Log.d("BusViewModel", "Usunięto wszystkie profile")
+            }
+
+            result.onFailure { error ->
+                _profileOperationStatus.value = "Błąd: ${error.message}"
+                Log.e("BusViewModel", "Błąd usuwania profili", error)
+            }
+        }
+    }
+
+    /**
      * Czyści status operacji na przewoźnikach
      */
     fun clearCarrierStatus() {

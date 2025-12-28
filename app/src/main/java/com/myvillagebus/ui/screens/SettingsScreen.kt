@@ -56,6 +56,7 @@ fun SettingsScreen(
 
     // Lokalne stany dialogów
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showDeleteFiltersDialog by remember { mutableStateOf(false) }
     var hasManuallyChecked by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -231,6 +232,20 @@ fun SettingsScreen(
                 Spacer(Modifier.width(8.dp))
                 Text("Usuń wszystkie rozkłady")
             }
+
+            // Przycisk: Usuń zapisane filtry (profile)
+            OutlinedButton(
+                onClick = { showDeleteFiltersDialog = true },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.error
+                )
+            ) {
+                Icon(Icons.Default.Delete, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Usuń wszystkie zapisane filtry")
+            }
+
 
             HorizontalDivider()
 
@@ -434,6 +449,31 @@ fun SettingsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("Anuluj")
+                }
+            }
+        )
+    }
+    // Dialog: Potwierdzenie usunięcia zapisanych filtrów
+    if (showDeleteFiltersDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteFiltersDialog = false },
+            title = { Text("Usuń wszystkie zapisane filtry?") },
+            text = {
+                Text("Ta operacja jest nieodwracalna. Wszystkie zapisane filtry zostaną usunięte.")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteAllProfiles()
+                        showDeleteFiltersDialog = false
+                    }
+                ) {
+                    Text("Usuń", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteFiltersDialog = false }) {
                     Text("Anuluj")
                 }
             }
