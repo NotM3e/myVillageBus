@@ -119,15 +119,35 @@ class BusViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Usuwa wszystkie rozkłady i metadane przewoźników (awaryjne czyszczenie)
+     */
     fun deleteAllSchedules() {
         viewModelScope.launch {
-            repository.deleteAllSchedules()
+            _syncStatus.value = "Usuwanie wszystkich danych..."
 
-            val app = getApplication<BusScheduleApplication>()
-            app.carrierVersionManager.clearAllVersions()
+            try {
+                // 1. Usuń rozkłady + metadane przewoźników (ta sama logika co deleteAllCarriers)
+                repository.deleteAllCarriers()
 
-            clearSyncInfo()
-            _syncStatus.value = "Usunięto wszystkie rozkłady"
+                // 2. Wyczyść wersje przewoźników
+                app.carrierVersionManager.clearAllVersions()
+
+                // 3. Wyczyść informacje o synchronizacji
+                clearSyncInfo()
+
+                // 4. Wyczyść listy w UI (dla CarrierBrowser)
+                _availableCarriers.value = emptyList()
+                _downloadedCarriers.value = emptyList()
+
+                _syncStatus.value = "Usunięto wszystkie rozkłady"
+
+                Log.d("BusViewModel", "✅ Awaryjne czyszczenie zakończone")
+
+            } catch (e: Exception) {
+                _syncStatus.value = "Błąd: ${e.message}"
+                Log.e("BusViewModel", "❌ Błąd awaryjnego czyszczenia", e)
+            }
         }
     }
 

@@ -1,4 +1,3 @@
-// 📁 data/model/Profile.kt
 package com.myvillagebus.data.model
 
 import android.util.Log
