@@ -27,6 +27,7 @@ import com.myvillagebus.utils.calculateMinutesUntil
 @Composable
 fun ScheduleDetailScreen(
     schedule: BusSchedule,
+    highlightedStops: Set<String> = emptySet(),
     onBackClick: () -> Unit
 ) {
     Scaffold(
@@ -268,7 +269,8 @@ fun ScheduleDetailScreen(
                         stop = stop,
                         isFirst = index == 0,
                         isLast = index == schedule.stops.lastIndex,
-                        departureTime = if (index == 0) schedule.departureTime else null  // DODAJ
+                        isHighlighted = highlightedStops.contains(stop.stopName),
+                        departureTime = if (index == 0) schedule.departureTime else null
                     )
                 }
             }
@@ -281,6 +283,7 @@ fun BusStopItem(
     stop: BusStop,
     isFirst: Boolean,
     isLast: Boolean,
+    isHighlighted: Boolean = false,
     departureTime: String? = null
 ) {
     Row(
@@ -309,13 +312,13 @@ fun BusStopItem(
             // Punkt przystanku
             Box(
                 modifier = Modifier
-                    .size(if (isFirst || isLast) 16.dp else 12.dp)
+                    .size(if (isHighlighted) 18.dp else 12.dp)
                     .clip(CircleShape)
                     .background(
-                        if (isFirst || isLast)
-                            MaterialTheme.colorScheme.primary
-                        else
-                            MaterialTheme.colorScheme.secondary
+                        when {
+                            isHighlighted -> MaterialTheme.colorScheme.tertiary
+                            else -> MaterialTheme.colorScheme.secondary
+                        }
                     )
             )
 
@@ -338,10 +341,10 @@ fun BusStopItem(
                 .fillMaxWidth()
                 .padding(start = 8.dp),
             colors = CardDefaults.cardColors(
-                containerColor = if (isFirst)
-                    MaterialTheme.colorScheme.primaryContainer
-                else
-                    MaterialTheme.colorScheme.surfaceVariant
+                containerColor = when {
+                    isHighlighted -> MaterialTheme.colorScheme.tertiaryContainer
+                    else -> MaterialTheme.colorScheme.surfaceVariant
+                }
             )
         ) {
             Row(
@@ -352,11 +355,34 @@ fun BusStopItem(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stop.stopName,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = stop.stopName,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = if (isHighlighted)
+                                MaterialTheme.colorScheme.onTertiaryContainer
+                            else
+                                MaterialTheme.colorScheme.onSurface
+                        )
+
+                        // Badge dla wybranych przystanków
+                        if (isHighlighted) {
+                            Surface(
+                                shape = MaterialTheme.shapes.small,
+                                color = MaterialTheme.colorScheme.tertiary
+                            ) {
+                                Text(
+                                    text = "✓",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onTertiary,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
 
                     if (stop.delayMinutes > 0) {
                         Text(
@@ -369,9 +395,9 @@ fun BusStopItem(
 
                 // Pokaż czas jeśli jest dostępny
                 val displayTime = when {
-                    isFirst && departureTime != null -> departureTime  // Pierwszy przystanek - czas odjazdu
-                    stop.arrivalTime.isNotEmpty() -> stop.arrivalTime  // Przystanek pośredni - jeśli ma czas
-                    else -> null  // Brak czasu
+                    isFirst && departureTime != null -> departureTime
+                    stop.arrivalTime.isNotEmpty() -> stop.arrivalTime
+                    else -> null
                 }
 
                 if (displayTime != null) {
@@ -379,11 +405,14 @@ fun BusStopItem(
                         Text(
                             text = displayTime,
                             style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.primary
+                            color = if (isHighlighted)
+                                MaterialTheme.colorScheme.tertiary
+                            else
+                                MaterialTheme.colorScheme.primary
                         )
 
-                        // Licznik "za X min" tylko dla pierwszego przystanku
-                        if (isFirst) {
+                        // Licznik "za X min" dla podświetlonych przystanków
+                        if (isHighlighted) {
                             val estimatedMinutes = calculateMinutesUntil(displayTime)
                             if (estimatedMinutes != null && estimatedMinutes >= 0 && estimatedMinutes < 120) {
                                 Text(

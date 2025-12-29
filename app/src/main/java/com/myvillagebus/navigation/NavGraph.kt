@@ -113,6 +113,7 @@ fun NavGraph(
             schedule?.let {
                 ScheduleDetailScreen(
                     schedule = it,
+                    highlightedStops = viewModel.currentHighlightedStops.value,
                     onBackClick = safePopBackStack
                 )
             }

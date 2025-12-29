@@ -59,6 +59,10 @@ class BusViewModel(application: Application) : AndroidViewModel(application) {
     private val _hoursSinceLastSync = MutableStateFlow<Long>(Long.MAX_VALUE)
     val hoursSinceLastSync: StateFlow<Long> = _hoursSinceLastSync.asStateFlow()
 
+    // Przystanki do podświetlenia w szczegółach
+    private val _currentHighlightedStops = MutableStateFlow<Set<String>>(emptySet())
+    val currentHighlightedStops: StateFlow<Set<String>> = _currentHighlightedStops.asStateFlow()
+
     init {
         refreshSyncInfo()
     }
@@ -251,7 +255,16 @@ class BusViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // Metody dla carrier browser
+    /**
+     * Ustawia przystanki do podświetlenia (fromStop, toStop)
+     */
+    fun setHighlightedStops(fromStop: String?, toStop: String?) {
+        _currentHighlightedStops.value = setOfNotNull(fromStop, toStop)
+    }
+
+    // ========================================
+    // CARRIER BROWSER
+    // ========================================
 
     /**
      * Pobiera listę dostępnych przewoźników z Google Sheets

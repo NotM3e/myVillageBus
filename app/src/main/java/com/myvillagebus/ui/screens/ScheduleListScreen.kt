@@ -522,7 +522,10 @@ fun ScheduleListScreen(
                             BusScheduleItem(
                                 schedule = schedule,
                                 highlightedStops = setOfNotNull(fromStop, toStop),
-                                onClick = { onScheduleClick(schedule) }
+                                onClick = {
+                                    viewModel.setHighlightedStops(fromStop, toStop)
+                                    onScheduleClick(schedule)
+                                }
                             )
                         }
                     }
@@ -894,39 +897,9 @@ fun FilterSection(
             color = MaterialTheme.colorScheme.outlineVariant
         )
 
-        // ═══════════ PRZEWOŹNICY ═══════════
-        if (carriers.isNotEmpty()) {
-            Text(
-                text = "Przewoźnik:",
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
-            )
-
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                items(carriers) { carrier ->
-                    FilterChip(
-                        selected = selectedCarriers.contains(carrier),
-                        onClick = { onCarrierToggle(carrier) },
-                        label = { Text(carrier) },
-                        leadingIcon = if (selectedCarriers.contains(carrier)) {
-                            {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = "Wybrano",
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        } else null
-                    )
-                }
-            }
-        }
-
         // ═══════════ ZAAWANSOWANE ═══════════
+        val advancedFiltersCount = selectedCarriers.size + selectedDesignations.size
+
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
@@ -950,13 +923,13 @@ fun FilterSection(
                         text = "Zaawansowane",
                         style = MaterialTheme.typography.bodyMedium
                     )
-                    if (selectedDesignations.isNotEmpty()) {
+                    if (advancedFiltersCount > 0) {
                         Surface(
                             shape = CircleShape,
                             color = MaterialTheme.colorScheme.primary
                         ) {
                             Text(
-                                text = selectedDesignations.size.toString(),
+                                text = advancedFiltersCount.toString(),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onPrimary,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -981,6 +954,37 @@ fun FilterSection(
                 modifier = Modifier.padding(horizontal = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // Przewoźnicy
+                if (carriers.isNotEmpty()) {
+                    Text(
+                        text = "Przewoźnik:",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        items(carriers) { carrier ->
+                            FilterChip(
+                                selected = selectedCarriers.contains(carrier),
+                                onClick = { onCarrierToggle(carrier) },
+                                label = { Text(carrier) },
+                                leadingIcon = if (selectedCarriers.contains(carrier)) {
+                                    {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = "Wybrano",
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                } else null
+                            )
+                        }
+                    }
+                }
+
                 // Oznaczenia linii
                 if (designations.isNotEmpty()) {
                     Text(
@@ -1032,7 +1036,6 @@ fun BusScheduleItem(
     highlightedStops: Set<String> = emptySet(),  //  MULTI
     onClick: () -> Unit
 ) {
-    val minutesUntil = calculateMinutesUntil(schedule.departureTime)
     val hasHighlightedStop = highlightedStops.isNotEmpty() &&
             highlightedStops.any { stop ->
                 schedule.stops.any { it.stopName == stop }
@@ -1198,8 +1201,22 @@ fun BusScheduleItem(
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.Center
             ) {
+                // Wyświetl godzinę z wybranego przystanku "Skąd" jeśli dostępna
+                val displayTime = if (highlightedStops.isNotEmpty()) {
+                    // Znajdź pierwszy highlighted stop (fromStop) i jego czas
+                    val fromStopName = highlightedStops.firstOrNull()
+                    fromStopName?.let { stopName ->
+                        schedule.stops.find { it.stopName == stopName }?.arrivalTime
+                            ?.takeIf { it.isNotBlank() }
+                    } ?: schedule.departureTime
+                } else {
+                    schedule.departureTime
+                }
+
+                val minutesUntil = calculateMinutesUntil(displayTime)
+
                 Text(
-                    text = schedule.departureTime,
+                    text = displayTime,
                     style = MaterialTheme.typography.headlineMedium,
                     color = if (operatesToday)
                         MaterialTheme.colorScheme.primary
