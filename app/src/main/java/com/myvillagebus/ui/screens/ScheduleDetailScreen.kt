@@ -76,11 +76,11 @@ fun ScheduleDetailScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // Nagłówek z informacjami o trasie
+            // ═══════════ STICKY HEADER - Informacje o rozkładzie ═══════════
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer
                 )
@@ -95,171 +95,163 @@ fun ScheduleDetailScreen(
                     ) {
                         Text(
                             text = schedule.carrierName,
-                            style = MaterialTheme.typography.headlineMedium,
+                            style = MaterialTheme.typography.titleLarge,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
 
-                        // ← ZMIANA: Rozdziel wielokrotne oznaczenia
                         schedule.lineDesignation?.let { designation ->
                             val designations = designation.split(",").map { it.trim() }
 
                             designations.forEach { singleDesignation ->
                                 Surface(
                                     shape = MaterialTheme.shapes.small,
-                                    color = getDesignationColor(singleDesignation)  // ← Kolor per oznaczenie
+                                    color = getDesignationColor(singleDesignation)
                                 ) {
                                     Text(
-                                        text = singleDesignation,  // ← Wyświetla "Komursk" i "Warlubie" osobno
-                                        style = MaterialTheme.typography.labelLarge,
+                                        text = singleDesignation,
+                                        style = MaterialTheme.typography.labelMedium,
                                         color = MaterialTheme.colorScheme.onPrimary,
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                     )
                                 }
                             }
                         }
                     }
 
-                    // Wytłumaczenie oznaczenia
-                    schedule.designationDescription?.let { description ->
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Surface(
-                            shape = MaterialTheme.shapes.medium,
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Info,
-                                    contentDescription = "Informacja",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Text(
-                                    text = description,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     // Trasa
                     Text(
                         text = schedule.busLine,
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Text(
-                        text = "Odjazd: ${schedule.departureTime}",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
-                    Text(
-                        text = "Kierunek: ${schedule.direction}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-
-                    // ← NOWE: Informacje o dniach kursu
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Divider(color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f))
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Text(
-                        text = "📅 Dni kursu:",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Wyświetl wszystkie dni jako chipy
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(5.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    // Odjazd + Kierunek w jednym wierszu
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
+                        Text(
+                            text = "🕒 ${schedule.departureTime}",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Text(
+                            text = "→ ${schedule.direction}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Dni kursu - kompaktowa wersja
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "📅",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+
                         DayOfWeek.values().forEach { day ->
                             val isOperating = schedule.operatesOn(day)
                             val isToday = day == BusSchedule.getCurrentDayOfWeek()
 
                             Surface(
-                                shape = MaterialTheme.shapes.small,
+                                shape = MaterialTheme.shapes.extraSmall,
                                 color = when {
                                     isOperating && isToday -> MaterialTheme.colorScheme.primary
                                     isOperating -> MaterialTheme.colorScheme.secondaryContainer
                                     else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
                                 },
                                 border = if (isToday) {
-                                    BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+                                    BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
                                 } else null
                             ) {
                                 Text(
-                                    text = BusSchedule.getDayAbbreviation(day),
-                                    style = MaterialTheme.typography.labelMedium,
+                                    text = BusSchedule.getDayAbbreviation(day).take(2),
+                                    style = MaterialTheme.typography.labelSmall,
                                     color = when {
                                         isOperating && isToday -> MaterialTheme.colorScheme.onPrimary
                                         isOperating -> MaterialTheme.colorScheme.onSecondaryContainer
                                         else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                     },
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+
+                        // Badge "Dziś"
+                        if (schedule.operatesToday()) {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Surface(
+                                shape = MaterialTheme.shapes.small,
+                                color = MaterialTheme.colorScheme.primary
+                            ) {
+                                Text(
+                                    text = "Dziś ✓",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                 )
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Text(
-                        text = schedule.getOperatingDaysDescription(),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                    )
-
-                    // Badge "Dziś kursuje"
-                    if (schedule.operatesToday()) {
+                    // Wytłumaczenie oznaczenia (jeśli jest)
+                    schedule.designationDescription?.let { description ->
                         Spacer(modifier = Modifier.height(8.dp))
-                        Surface(
-                            shape = MaterialTheme.shapes.medium,
-                            color = MaterialTheme.colorScheme.primary
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Text(
-                                    text = "✓",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.onPrimary
-                                )
-                                Text(
-                                    text = "Ten kurs dziś kursuje",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onPrimary
-                                )
-                            }
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = description,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                            )
                         }
                     }
                 }
             }
 
-            // Lista przystanków
-            Text(
-                text = "Przystanki",
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            // ═══════════ DIVIDER + LABEL ═══════════
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "Przystanki",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "(${schedule.stops.size})",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                color = MaterialTheme.colorScheme.outlineVariant
             )
 
+            // ═══════════ SCROLLABLE - Lista przystanków ═══════════
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
