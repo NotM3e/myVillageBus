@@ -23,11 +23,14 @@ data class Profile(
 
     val selectedDesignations: Set<String> = emptySet(),
 
-    val selectedStops: Set<String> = emptySet(),
+    // Zamiast selectedStops (Set) -> fromStop i toStop (String?)
+    val fromStop: String? = null,
 
-    val selectedDirection: String? = null,  // Nullable single-select
+    val toStop: String? = null,
 
-    val selectedDay: DayOfWeek? = null,  // Nullable single-select
+    val selectedDirection: String? = null,  // zastąpione przez toStop
+
+    val selectedDay: DayOfWeek? = null,
 
     // Metadata
     val createdAt: Long = System.currentTimeMillis(),
@@ -43,45 +46,40 @@ data class Profile(
 
     /**
      * Zwraca liczbę rozkładów pasujących do filtrów profilu
-     * UWAGA: Wymaga przekazania wszystkich rozkładów z ViewModel
-     *
-     * ← POPRAWIONE: Dodano cache (hash list rozkładów → count)
      */
     fun getMatchingSchedulesCount(allSchedules: List<BusSchedule>): Int {
-        // Cache key = hashCode listy rozkładów
         val cacheKey = allSchedules.hashCode()
 
-        // Sprawdź cache
         _matchingSchedulesCache[cacheKey]?.let { cachedCount ->
             return cachedCount
         }
 
-        // Oblicz na nowo
         val count = allSchedules.count { schedule ->
             val matchesCarrier = selectedCarriers.isEmpty() || selectedCarriers.contains(schedule.carrierName)
+
             val matchesDesignation = selectedDesignations.isEmpty() ||
                     selectedDesignations.all { designation ->
                         schedule.lineDesignation?.split(",")?.map { it.trim() }?.contains(designation) == true
                     }
-            val matchesStop = selectedStops.isEmpty() ||
-                    selectedStops.any { stop ->
-                        schedule.stops.any { it.stopName == stop }
-                    }
-            val matchesDirection = selectedDirection == null || schedule.direction == selectedDirection
+
+            // fromStop / toStop
+            val stops = schedule.stops.map { it.stopName }
+            val fromIndex = fromStop?.let { stops.indexOf(it) } ?: -1
+            val toIndex = toStop?.let { stops.indexOf(it) } ?: -1
+
+            val matchesRoute = when {
+                fromStop == null && toStop == null -> true
+                fromStop != null && toStop == null -> fromIndex >= 0
+                fromStop == null && toStop != null -> toIndex >= 0
+                else -> fromIndex >= 0 && toIndex > fromIndex
+            }
+
             val matchesDay = selectedDay?.let { schedule.operatesOn(it) } ?: true
 
-            matchesCarrier && matchesDesignation && matchesStop && matchesDirection && matchesDay
+            matchesCarrier && matchesDesignation && matchesRoute && matchesDay
         }
 
-        // Zapisz w cache
         _matchingSchedulesCache[cacheKey] = count
-
-        _matchingSchedulesCache[cacheKey]?.let { cachedCount ->
-            Log.d("Profile", "Cache hit dla ${this.name}: $cachedCount")
-            return cachedCount
-        }
-        Log.d("Profile", "Cache miss dla ${this.name}, obliczam...")
-
         return count
     }
 
@@ -122,8 +120,8 @@ data class Profile(
     fun hasActiveFilters(): Boolean {
         return selectedCarriers.isNotEmpty() ||
                 selectedDesignations.isNotEmpty() ||
-                selectedStops.isNotEmpty() ||
-                selectedDirection != null ||
+                fromStop != null ||
+                toStop != null ||
                 selectedDay != null
     }
 
@@ -136,8 +134,9 @@ data class Profile(
         if (selectedCarriers.isNotEmpty()) {
             parts.add("${selectedCarriers.size} przewoźnik${if (selectedCarriers.size > 1) "ów" else ""}")
         }
-        if (selectedStops.isNotEmpty()) {
-            parts.add("${selectedStops.size} przystanek${if (selectedStops.size > 1) "i" else ""}")
+        if (fromStop != null || toStop != null) {
+            val route = listOfNotNull(fromStop, toStop).joinToString(" → ")
+            parts.add(route)
         }
         if (selectedDay != null) {
             parts.add(BusSchedule.getDayAbbreviation(selectedDay))
@@ -145,4 +144,5 @@ data class Profile(
 
         return if (parts.isEmpty()) "Brak filtrów" else parts.joinToString(", ")
     }
+
 }

@@ -39,21 +39,18 @@ fun SaveProfileDialog(
     val filtersSummary = buildString {
         val carriers = currentFilters["carriers"] as? Set<*>
         val designations = currentFilters["designations"] as? Set<*>
-        val stops = currentFilters["stops"] as? Set<*>
-        val direction = currentFilters["direction"] as? String
+        val from = currentFilters["fromStop"] as? String
+        val to = currentFilters["toStop"] as? String
         val day = currentFilters["day"]
 
         if (!carriers.isNullOrEmpty()) {
             append("• Przewoźnicy: ${carriers.joinToString(", ")}\n")
         }
+        if (from != null || to != null) {
+            append("• Trasa: ${from ?: "dowolny"} → ${to ?: "dowolny"}\n")
+        }
         if (!designations.isNullOrEmpty()) {
             append("• Oznaczenia: ${designations.joinToString(", ")}\n")
-        }
-        if (!stops.isNullOrEmpty()) {
-            append("• Przystanki: ${stops.joinToString(", ")}\n")
-        }
-        if (!direction.isNullOrEmpty()) {
-            append("• Kierunek: $direction\n")
         }
         if (day != null) {
             append("• Dzień: $day\n")

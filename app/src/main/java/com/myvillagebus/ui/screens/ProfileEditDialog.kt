@@ -51,11 +51,11 @@ fun ProfileEditDialog(
         if (profile.selectedDesignations.isNotEmpty()) {
             append("• Oznaczenia: ${profile.selectedDesignations.joinToString(", ")}\n")
         }
-        if (profile.selectedStops.isNotEmpty()) {
-            append("• Przystanki: ${profile.selectedStops.joinToString(", ")}\n")
-        }
-        if (profile.selectedDirection != null) {
-            append("• Kierunek: ${profile.selectedDirection}\n")
+        // fromStop / toStop/
+        if (profile.fromStop != null || profile.toStop != null) {
+            val from = profile.fromStop ?: "dowolny"
+            val to = profile.toStop ?: "dowolny"
+            append("• Trasa: $from → $to\n")
         }
         if (profile.selectedDay != null) {
             append("• Dzień: ${com.myvillagebus.data.model.BusSchedule.getDayNameInPolish(profile.selectedDay)}\n")

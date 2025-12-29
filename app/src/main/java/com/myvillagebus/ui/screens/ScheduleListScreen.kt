@@ -71,8 +71,9 @@ fun ScheduleListScreen(
     // Stany filtrów
     var selectedCarriers by rememberSaveable { mutableStateOf(setOf<String>()) }
     var selectedDesignations by rememberSaveable { mutableStateOf(setOf<String>()) }
-    var selectedDirection by rememberSaveable { mutableStateOf<String?>(null) }
-    var selectedStops by rememberSaveable { mutableStateOf(setOf<String>()) }
+    var fromStop by rememberSaveable { mutableStateOf<String?>(null) }
+    var toStop by rememberSaveable { mutableStateOf<String?>(null) }
+    var showAdvancedFilters by rememberSaveable { mutableStateOf(false) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var filtersExpanded by rememberSaveable { mutableStateOf(false) }
     var showTimePickerDialog by remember { mutableStateOf(false) }
@@ -97,8 +98,8 @@ fun ScheduleListScreen(
             mapOf(
                 "carriers" to it.selectedCarriers,
                 "designations" to it.selectedDesignations,
-                "stops" to it.selectedStops,
-                "direction" to it.selectedDirection,
+                "fromStop" to it.fromStop,
+                "toStop" to it.toStop,
                 "day" to it.selectedDay
             )
         }
@@ -108,8 +109,8 @@ fun ScheduleListScreen(
     LaunchedEffect(
         selectedCarriers,
         selectedDesignations,
-        selectedStops,
-        selectedDirection,
+        fromStop,
+        toStop,
         selectedDay,
         currentProfile
     ) {
@@ -117,8 +118,8 @@ fun ScheduleListScreen(
             val filtersChanged =
                 selectedCarriers != initialFilters["carriers"] ||
                         selectedDesignations != initialFilters["designations"] ||
-                        selectedStops != initialFilters["stops"] ||
-                        selectedDirection != initialFilters["direction"] ||
+                        fromStop != initialFilters["fromStop"] ||
+                        toStop != initialFilters["toStop"] ||
                         selectedDay != initialFilters["day"]
 
             if (filtersChanged) {
@@ -169,16 +170,11 @@ fun ScheduleListScreen(
             .sorted()
     }
 
-    // Pobierz wszystkie przystanki z tras
-    val allStops = remember(schedules, selectedCarriers, selectedDesignations) {
+    // Pobierz wszystkie przystanki z tras (dla dropdownów)
+    val allStops = remember(schedules, selectedCarriers) {
         schedules
             .filter {
-                val matchesCarrier = selectedCarriers.isEmpty() || selectedCarriers.contains(it.carrierName)
-                val matchesDesignation = selectedDesignations.isEmpty() ||
-                        selectedDesignations.all { designation ->
-                            it.lineDesignation?.split(",")?.map { d -> d.trim() }?.contains(designation) == true
-                        }
-                matchesCarrier && matchesDesignation
+                selectedCarriers.isEmpty() || selectedCarriers.contains(it.carrierName)
             }
             .flatMap { schedule -> schedule.stops.map { it.stopName } }
             .distinct()
@@ -190,24 +186,43 @@ fun ScheduleListScreen(
         derivedStateOf {
             schedules.filter { schedule ->
                 val matchesCarrier = selectedCarriers.isEmpty() || selectedCarriers.contains(schedule.carrierName)
+
                 val matchesDesignation = selectedDesignations.isEmpty() ||
                         selectedDesignations.all { designation ->
                             schedule.lineDesignation?.split(",")?.map { it.trim() }?.contains(designation) == true
                         }
-                val matchesDirection = selectedDirection == null || schedule.direction == selectedDirection
-                val matchesStop = selectedStops.isEmpty() ||
-                        selectedStops.any { stop ->
-                            schedule.stops.any { it.stopName == stop }
-                        }
+
+                // Logika fromStop / toStop
+                val stops = schedule.stops.map { it.stopName }
+                val fromIndex = fromStop?.let { stops.indexOf(it) } ?: -1
+                val toIndex = toStop?.let { stops.indexOf(it) } ?: -1
+
+                val matchesRoute = when {
+                    fromStop == null && toStop == null -> true
+                    fromStop != null && toStop == null -> fromIndex >= 0
+                    fromStop == null && toStop != null -> toIndex >= 0
+                    else -> fromIndex >= 0 && toIndex > fromIndex
+                }
+
                 val matchesDay = selectedDay?.let { schedule.operatesOn(it) } ?: true
 
-                matchesCarrier && matchesDesignation && matchesDirection && matchesStop && matchesDay
-            }.sortedBy { it.departureTime }
+                matchesCarrier && matchesDesignation && matchesRoute && matchesDay
+            }.sortedBy { schedule ->
+                // Sortuj po czasie na przystanku "Skąd" jeśli wybrany
+                if (fromStop != null) {
+                    schedule.stops.find { it.stopName == fromStop }?.arrivalTime
+                        ?: schedule.departureTime
+                } else {
+                    schedule.departureTime
+                }
+            }
         }
     }
 
-    val hasActiveFilters = selectedCarriers.isNotEmpty() || selectedDesignations.isNotEmpty() ||
-            selectedDirection != null || selectedStops.isNotEmpty() ||
+    val hasActiveFilters = selectedCarriers.isNotEmpty() ||
+            selectedDesignations.isNotEmpty() ||
+            fromStop != null ||
+            toStop != null ||
             selectedDay != null
 
     // Funkcja pomocnicza - konwersja "HH:MM" na minuty
@@ -226,8 +241,18 @@ fun ScheduleListScreen(
     fun scrollToTime(hour: Int, minute: Int) {
         scope.launch {
             val selectedTimeMinutes = hour * 60 + minute
+
             val targetIndex = filteredSchedules.indexOfFirst { schedule ->
-                val scheduleMinutes = parseTimeToMinutes(schedule.departureTime)
+                // Użyj czasu na przystanku "Skąd" jeśli wybrany, inaczej departureTime
+                val timeToCompare = if (fromStop != null) {
+                    schedule.stops.find { it.stopName == fromStop }?.arrivalTime
+                        ?.takeIf { it.isNotBlank() }
+                        ?: schedule.departureTime
+                } else {
+                    schedule.departureTime
+                }
+
+                val scheduleMinutes = parseTimeToMinutes(timeToCompare)
                 scheduleMinutes >= selectedTimeMinutes
             }
 
@@ -238,11 +263,6 @@ fun ScheduleListScreen(
                     listState.animateScrollToItem(filteredSchedules.lastIndex)
                     snackbarHostState.showSnackbar(
                         message = "Brak rozkładów po godzinie ${String.format("%02d:%02d", hour, minute)}. Pokazano ostatni",
-                        duration = SnackbarDuration.Short
-                    )
-                } else {
-                    snackbarHostState.showSnackbar(
-                        message = "Brak rozkładów do wyświetlenia",
                         duration = SnackbarDuration.Short
                     )
                 }
@@ -259,10 +279,20 @@ fun ScheduleListScreen(
                 currentProfileId = currentProfile?.id,
                 onProfileClick = { profileId ->
                     viewModel.applyProfile(profileId)?.let { filters ->
-                        selectedCarriers = filters["carriers"] as? Set<String> ?: emptySet()
-                        selectedDesignations = filters["designations"] as? Set<String> ?: emptySet()
-                        selectedStops = filters["stops"] as? Set<String> ?: emptySet()
-                        selectedDirection = filters["direction"] as? String
+                        @Suppress("UNCHECKED_CAST")
+                        selectedCarriers = (filters["carriers"] as? Set<*>)
+                            ?.filterIsInstance<String>()
+                            ?.toSet()
+                            ?: emptySet()
+
+                        @Suppress("UNCHECKED_CAST")
+                        selectedDesignations = (filters["designations"] as? Set<*>)
+                            ?.filterIsInstance<String>()
+                            ?.toSet()
+                            ?: emptySet()
+
+                        fromStop = filters["fromStop"] as? String
+                        toStop = filters["toStop"] as? String
                         selectedDay = filters["day"] as? DayOfWeek
                     }
                     scope.launch { drawerState.close() }
@@ -323,15 +353,15 @@ fun ScheduleListScreen(
                     expanded = filtersExpanded,
                     hasActiveFilters = hasActiveFilters,
                     activeFiltersCount = selectedCarriers.size + selectedDesignations.size +
-                            (if (selectedDirection != null) 1 else 0) + selectedStops.size +
+                            (if (fromStop != null) 1 else 0) +
+                            (if (toStop != null) 1 else 0) +
                             (if (selectedDay != null) 1 else 0),
                     onToggleExpanded = { filtersExpanded = !filtersExpanded },
                     onClearFilters = {
                         selectedCarriers = setOf()
                         selectedDesignations = setOf()
-                        selectedDirection = null
-                        selectedStops = setOf()
-                        searchQuery = ""
+                        fromStop = null
+                        toStop = null
                         selectedDay = null
                     }
                 )
@@ -344,15 +374,13 @@ fun ScheduleListScreen(
                     FilterSection(
                         carriers = carriers,
                         designations = designations,
-                        directions = directions,
                         allStops = allStops,
                         selectedCarriers = selectedCarriers,
                         selectedDesignations = selectedDesignations,
-                        selectedDirection = selectedDirection,
-                        selectedStops = selectedStops,
-                        searchQuery = searchQuery,
+                        fromStop = fromStop,
+                        toStop = toStop,
                         selectedDay = selectedDay,
-                        onSearchQueryChange = { searchQuery = it },
+                        showAdvancedFilters = showAdvancedFilters,
                         onCarrierToggle = { carrier ->
                             selectedCarriers = if (selectedCarriers.contains(carrier)) {
                                 selectedCarriers - carrier
@@ -367,34 +395,21 @@ fun ScheduleListScreen(
                                 selectedDesignations + designation
                             }
                         },
-                        onDirectionSelected = { direction ->
-                            selectedDirection = if (selectedDirection == direction) null else direction
-                        },
-                        onStopToggle = { stop ->
-                            selectedStops = if (selectedStops.contains(stop)) {
-                                selectedStops - stop
-                            } else {
-                                selectedStops + stop
-                            }
-                        },
-                        onNowClick = {
-                            // Ustaw dzisiejszy dzień
-                            selectedDay = BusSchedule.getCurrentDayOfWeek()
-
-                            // Pobierz aktualną godzinę i scrolluj
-                            val calendar = Calendar.getInstance()
-                            val currentHour = calendar.get(Calendar.HOUR_OF_DAY)
-                            val currentMinute = calendar.get(Calendar.MINUTE)
-                            scrollToTime(currentHour, currentMinute)
-                        },
+                        onFromStopSelected = { fromStop = it },
+                        onToStopSelected = { toStop = it },
                         onTimePickerClick = { showTimePickerDialog = true },
                         onDayPickerClick = { showDayPickerDialog = true },
+                        onNowClick = {
+                            selectedDay = BusSchedule.getCurrentDayOfWeek()
+                            val calendar = Calendar.getInstance()
+                            scrollToTime(calendar.get(Calendar.HOUR_OF_DAY), calendar.get(Calendar.MINUTE))
+                        },
+                        onToggleAdvanced = { showAdvancedFilters = !showAdvancedFilters },
                         onClearFilters = {
                             selectedCarriers = setOf()
                             selectedDesignations = setOf()
-                            selectedDirection = null
-                            selectedStops = setOf()
-                            searchQuery = ""
+                            fromStop = null
+                            toStop = null
                             selectedDay = null
                         }
                     )
@@ -408,13 +423,13 @@ fun ScheduleListScreen(
                     ActiveFiltersChips(
                         selectedCarriers = selectedCarriers,
                         selectedDesignations = selectedDesignations,
-                        selectedDirection = selectedDirection,
-                        selectedStops = selectedStops,
+                        fromStop = fromStop,
+                        toStop = toStop,
                         selectedDay = selectedDay,
                         onRemoveCarrier = { carrier -> selectedCarriers = selectedCarriers - carrier },
                         onRemoveDesignation = { designation -> selectedDesignations = selectedDesignations - designation },
-                        onRemoveDirection = { selectedDirection = null },
-                        onRemoveStop = { stop -> selectedStops = selectedStops - stop },
+                        onRemoveFromStop = { fromStop = null },
+                        onRemoveToStop = { toStop = null },
                         onRemoveDay = { selectedDay = null }
                     )
                 }
@@ -506,7 +521,7 @@ fun ScheduleListScreen(
                         items(filteredSchedules) { schedule ->
                             BusScheduleItem(
                                 schedule = schedule,
-                                highlightedStops = selectedStops,
+                                highlightedStops = setOfNotNull(fromStop, toStop),
                                 onClick = { onScheduleClick(schedule) }
                             )
                         }
@@ -541,8 +556,8 @@ fun ScheduleListScreen(
                     currentFilters = mapOf(
                         "carriers" to selectedCarriers,
                         "designations" to selectedDesignations,
-                        "stops" to selectedStops,
-                        "direction" to selectedDirection,
+                        "fromStop" to fromStop,
+                        "toStop" to toStop,
                         "day" to selectedDay
                     ),
                     viewModel = viewModel,
@@ -651,77 +666,42 @@ fun FilterHeader(
 fun ActiveFiltersChips(
     selectedCarriers: Set<String>,
     selectedDesignations: Set<String>,
-    selectedDirection: String?,
-    selectedStops: Set<String>,
+    fromStop: String?,
+    toStop: String?,
     selectedDay: DayOfWeek?,
     onRemoveCarrier: (String) -> Unit,
     onRemoveDesignation: (String) -> Unit,
-    onRemoveDirection: () -> Unit,
-    onRemoveStop: (String) -> Unit,
+    onRemoveFromStop: () -> Unit,
+    onRemoveToStop: () -> Unit,
     onRemoveDay: () -> Unit
 ) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        //  MULTI: Przewoźnicy
+        // Przewoźnicy
         items(selectedCarriers.toList()) { carrier ->
-            AnimatedVisibility(
-                visible = true,
-                enter = scaleIn() + fadeIn(),
-                exit = scaleOut() + fadeOut()
-            ) {
-                InputChip(
-                    selected = true,
-                    onClick = { onRemoveCarrier(carrier) },
-                    label = { Text(carrier) },
-                    trailingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.Clear,
-                            contentDescription = "Usuń",
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                )
-            }
-        }
-
-        //  MULTI: Oznaczenia
-        items(selectedDesignations.toList()) { designation ->
-            AnimatedVisibility(
-                visible = true,
-                enter = scaleIn() + fadeIn(),
-                exit = scaleOut() + fadeOut()
-            ) {
-                InputChip(
-                    selected = true,
-                    onClick = { onRemoveDesignation(designation) },
-                    label = { Text(designation) },
-                    trailingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.Clear,
-                            contentDescription = "Usuń",
-                            modifier = Modifier.size(18.dp)
-                        )
-                    },
-                    colors = InputChipDefaults.inputChipColors(
-                        selectedContainerColor = getDesignationColor(designation)
+            InputChip(
+                selected = true,
+                onClick = { onRemoveCarrier(carrier) },
+                label = { Text(carrier) },
+                trailingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Clear,
+                        contentDescription = "Usuń",
+                        modifier = Modifier.size(18.dp)
                     )
-                )
-            }
+                }
+            )
         }
 
-        //  MULTI: Przystanki
-        items(selectedStops.toList()) { stop ->
-            AnimatedVisibility(
-                visible = true,
-                enter = scaleIn() + fadeIn(),
-                exit = scaleOut() + fadeOut()
-            ) {
+        // Skąd
+        fromStop?.let { stop ->
+            item {
                 InputChip(
                     selected = true,
-                    onClick = { onRemoveStop(stop) },
-                    label = { Text(stop) },
+                    onClick = onRemoveFromStop,
+                    label = { Text("📍 $stop") },
                     trailingIcon = {
                         Icon(
                             imageVector = Icons.Default.Clear,
@@ -733,52 +713,59 @@ fun ActiveFiltersChips(
             }
         }
 
-        // Wybrany dzień
+        // Dokąd
+        toStop?.let { stop ->
+            item {
+                InputChip(
+                    selected = true,
+                    onClick = onRemoveToStop,
+                    label = { Text("🎯 $stop") },
+                    trailingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Clear,
+                            contentDescription = "Usuń",
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                )
+            }
+        }
+
+        // Dzień
         selectedDay?.let { day ->
             item {
-                AnimatedVisibility(
-                    visible = true,
-                    enter = scaleIn() + fadeIn(),
-                    exit = scaleOut() + fadeOut()
-                ) {
-                    InputChip(
-                        selected = true,
-                        onClick = onRemoveDay,
-                        label = { Text("📆 ${BusSchedule.getDayNameInPolish(day)}") },
-                        trailingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.Clear,
-                                contentDescription = "Usuń",
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    )
-                }
+                InputChip(
+                    selected = true,
+                    onClick = onRemoveDay,
+                    label = { Text("📆 ${BusSchedule.getDayNameInPolish(day)}") },
+                    trailingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.Clear,
+                            contentDescription = "Usuń",
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                )
             }
         }
 
-        //  SINGLE: Kierunek
-        selectedDirection?.let { direction ->
-            item {
-                AnimatedVisibility(
-                    visible = true,
-                    enter = scaleIn() + fadeIn(),
-                    exit = scaleOut() + fadeOut()
-                ) {
-                    InputChip(
-                        selected = true,
-                        onClick = onRemoveDirection,
-                        label = { Text("→ $direction") },
-                        trailingIcon = {
-                            Icon(
-                                imageVector = Icons.Default.Clear,
-                                contentDescription = "Usuń",
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
+        // Oznaczenia
+        items(selectedDesignations.toList()) { designation ->
+            InputChip(
+                selected = true,
+                onClick = { onRemoveDesignation(designation) },
+                label = { Text(designation) },
+                trailingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Clear,
+                        contentDescription = "Usuń",
+                        modifier = Modifier.size(18.dp)
                     )
-                }
-            }
+                },
+                colors = InputChipDefaults.inputChipColors(
+                    selectedContainerColor = getDesignationColor(designation)
+                )
+            )
         }
     }
 }
@@ -788,28 +775,27 @@ fun ActiveFiltersChips(
 fun FilterSection(
     carriers: List<String>,
     designations: List<String>,
-    directions: List<String>,
     allStops: List<String>,
     selectedCarriers: Set<String>,
     selectedDesignations: Set<String>,
-    selectedDirection: String?,
-    selectedStops: Set<String>,
-    searchQuery: String,
+    fromStop: String?,
+    toStop: String?,
     selectedDay: DayOfWeek?,
-    onSearchQueryChange: (String) -> Unit,
+    showAdvancedFilters: Boolean,
     onCarrierToggle: (String) -> Unit,
     onDesignationToggle: (String) -> Unit,
-    onDirectionSelected: (String) -> Unit,
-    onStopToggle: (String) -> Unit,
-    onNowClick: () -> Unit,
+    onFromStopSelected: (String?) -> Unit,
+    onToStopSelected: (String?) -> Unit,
     onTimePickerClick: () -> Unit,
     onDayPickerClick: () -> Unit,
+    onNowClick: () -> Unit,
+    onToggleAdvanced: () -> Unit,
     onClearFilters: () -> Unit
 ) {
     Column(
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-//  FlowRow z przyciskami
+        // ═══════════ SZYBKIE AKCJE ═══════════
         FlowRow(
             modifier = Modifier
                 .fillMaxWidth()
@@ -835,6 +821,7 @@ fun FilterSection(
                     labelColor = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             )
+
             // Przycisk "Wybór Dnia"
             FilterChip(
                 selected = selectedDay != null,
@@ -880,11 +867,38 @@ fun FilterSection(
             color = MaterialTheme.colorScheme.outlineVariant
         )
 
-        // Filtry przewoźników (MULTI-SELECT OR)
+        // ═══════════ SKĄD -> DOKĄD ═══════════
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            StopDropdown(
+                label = "Skąd",
+                selectedStop = fromStop,
+                availableStops = allStops,
+                onStopSelected = onFromStopSelected
+            )
+
+            StopDropdown(
+                label = "Dokąd",
+                selectedStop = toStop,
+                availableStops = allStops,
+                onStopSelected = onToStopSelected
+            )
+        }
+
+        HorizontalDivider(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
+            color = MaterialTheme.colorScheme.outlineVariant
+        )
+
+        // ═══════════ PRZEWOŹNICY ═══════════
         if (carriers.isNotEmpty()) {
             Text(
                 text = "Przewoźnik:",
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
             )
@@ -901,47 +915,6 @@ fun FilterSection(
                         leadingIcon = if (selectedCarriers.contains(carrier)) {
                             {
                                 Icon(
-                                    imageVector = Icons.Default.Check,  // Checkmark zamiast X
-                                    contentDescription = "Wybrano",
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        } else null
-                    )
-                }
-            }
-        }
-
-        // Filtry oznaczeń linii (MULTI-SELECT AND)
-        if (designations.isNotEmpty()) {
-            Text(
-                text = "Oznaczenie linii:",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
-            )
-
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 14.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                items(designations) { designation ->
-                    FilterChip(
-                        selected = selectedDesignations.contains(designation),
-                        onClick = { onDesignationToggle(designation) },
-                        label = {
-                            Text(
-                                text = designation,
-                                style = MaterialTheme.typography.labelLarge
-                            )
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = getDesignationColor(designation),
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimary
-                        ),
-                        leadingIcon = if (selectedDesignations.contains(designation)) {
-                            {
-                                Icon(
                                     imageVector = Icons.Default.Check,
                                     contentDescription = "Wybrano",
                                     modifier = Modifier.size(18.dp)
@@ -953,105 +926,94 @@ fun FilterSection(
             }
         }
 
-        // Filtry przystanków (MULTI-SELECT OR)
-        if (allStops.isNotEmpty()) {
-            Text(
-                text = "Przystanek na trasie:",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
-            )
-
-            // Pole wyszukiwania przystanków
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = onSearchQueryChange,
-                label = { Text("Szukaj przystanku...") },
+        // ═══════════ ZAAWANSOWANE ═══════════
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp)
+                .clickable { onToggleAdvanced() },
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            shape = MaterialTheme.shapes.small
+        ) {
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 2.dp),
-                leadingIcon = {
-                    Icon(Icons.Default.Search, "Szukaj")
-                },
-                trailingIcon = {
-                    if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { onSearchQueryChange("") }) {
-                            Icon(
-                                imageVector = Icons.Default.Clear,
-                                contentDescription = "Wyczyść wyszukiwanie"
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Zaawansowane",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    if (selectedDesignations.isNotEmpty()) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primary
+                        ) {
+                            Text(
+                                text = selectedDesignations.size.toString(),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
                     }
-                },
-                singleLine = true
-            )
-
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 14.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                val filteredStops = allStops.filter {
-                    it.contains(searchQuery, ignoreCase = true)
                 }
-
-                if (filteredStops.isEmpty() && searchQuery.isNotEmpty()) {
-                    item {
-                        Text(
-                            text = "Brak przystanków pasujących do \"$searchQuery\"",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(8.dp)
-                        )
-                    }
-                } else {
-                    items(filteredStops) { stop ->
-                        FilterChip(
-                            selected = selectedStops.contains(stop),
-                            onClick = { onStopToggle(stop) },
-                            label = { Text(stop) },
-                            leadingIcon = if (selectedStops.contains(stop)) {
-                                {
-                                    Icon(
-                                        imageVector = Icons.Default.Check,
-                                        contentDescription = "Wybrano",
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            } else null
-                        )
-                    }
-                }
+                Text(
+                    text = if (showAdvancedFilters) "▲" else "▼",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
 
-        // Filtry kierunków (końcowy przystanek)
-        if (directions.isNotEmpty()) {
-            Text(
-                text = "Kierunek końcowy:",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
-            )
-
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+        // Zawartość zaawansowanych filtrów
+        AnimatedVisibility(
+            visible = showAdvancedFilters,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(directions) { direction ->
-                    FilterChip(
-                        selected = selectedDirection == direction,
-                        onClick = { onDirectionSelected(direction) },
-                        label = { Text(direction) },
-                        leadingIcon = if (selectedDirection == direction) {
-                            {
-                                Icon(
-                                    imageVector = Icons.Default.Clear,
-                                    contentDescription = "Usuń filtr",
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        } else null
+                // Oznaczenia linii
+                if (designations.isNotEmpty()) {
+                    Text(
+                        text = "Oznaczenia linii:",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 8.dp)
                     )
+
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        items(designations) { designation ->
+                            FilterChip(
+                                selected = selectedDesignations.contains(designation),
+                                onClick = { onDesignationToggle(designation) },
+                                label = { Text(designation) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = getDesignationColor(designation),
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                                ),
+                                leadingIcon = if (selectedDesignations.contains(designation)) {
+                                    {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = "Wybrano",
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                } else null
+                            )
+                        }
+                    }
                 }
             }
         }

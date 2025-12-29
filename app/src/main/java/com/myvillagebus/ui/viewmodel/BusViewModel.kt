@@ -558,26 +558,21 @@ class BusViewModel(application: Application) : AndroidViewModel(application) {
 
         return if (profile != null) {
             viewModelScope.launch {
-                // Zapisz jako ostatnio użyty
                 preferencesManager.saveLastUsedProfile(profileId)
                 _currentProfile.value = profile
-
-                // Zaktualizuj timestamp w bazie
                 profileRepository.markAsUsed(profileId)
-
-                Log.d("BusViewModel", "Zastosowano profil: ${profile.name}")
+                Log.d("BusViewModel", "Zastosowano filtr: ${profile.name}")
             }
 
-            // Zwróć filtry do ustawienia w UI
             mapOf(
                 "carriers" to profile.selectedCarriers,
                 "designations" to profile.selectedDesignations,
-                "stops" to profile.selectedStops,
-                "direction" to profile.selectedDirection,
+                "fromStop" to profile.fromStop,
+                "toStop" to profile.toStop,
                 "day" to profile.selectedDay
             )
         } else {
-            Log.w("BusViewModel", "Profil $profileId nie znaleziony")
+            Log.w("BusViewModel", "Filtr $profileId nie znaleziony")
             null
         }
     }
@@ -590,9 +585,9 @@ class BusViewModel(application: Application) : AndroidViewModel(application) {
      * @param filters Mapa filtrów z UI (carriers, designations, stops, direction, day)
      */
     fun createProfileFromCurrentFilters(
-        name: String,
-        icon: String,
-        filters: Map<String, Any?>
+    name: String,
+    icon: String,
+    filters: Map<String, Any?>
     ) {
         viewModelScope.launch {
             @Suppress("UNCHECKED_CAST")
@@ -601,21 +596,21 @@ class BusViewModel(application: Application) : AndroidViewModel(application) {
                 icon = icon,
                 selectedCarriers = (filters["carriers"] as? Set<String>) ?: emptySet(),
                 selectedDesignations = (filters["designations"] as? Set<String>) ?: emptySet(),
-                selectedStops = (filters["stops"] as? Set<String>) ?: emptySet(),
-                selectedDirection = filters["direction"] as? String,
+                fromStop = filters["fromStop"] as? String,
+                toStop = filters["toStop"] as? String,
                 selectedDay = filters["day"] as? java.time.DayOfWeek
             )
 
             val result = profileRepository.createProfile(profile)
 
             result.onSuccess { profileId ->
-                _profileOperationStatus.value = "✅ Utworzono profil '$name'"
-                Log.d("BusViewModel", "Utworzono profil: $name (id=$profileId)")
+                _profileOperationStatus.value = "✅ Utworzono filtr '$name'"
+                Log.d("BusViewModel", "Utworzono filtr: $name (id=$profileId)")
             }
 
             result.onFailure { error ->
                 _profileOperationStatus.value = "❌ Błąd: ${error.message}"
-                Log.e("BusViewModel", "Błąd tworzenia profilu", error)
+                Log.e("BusViewModel", "Błąd tworzenia filtra", error)
             }
         }
     }
