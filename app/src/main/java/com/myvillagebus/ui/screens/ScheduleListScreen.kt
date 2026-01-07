@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -397,6 +398,11 @@ fun ScheduleListScreen(
                         },
                         onFromStopSelected = { fromStop = it },
                         onToStopSelected = { toStop = it },
+                        onSwapStops = {
+                            val temp = fromStop
+                            fromStop = toStop
+                            toStop = temp
+                        },
                         onTimePickerClick = { showTimePickerDialog = true },
                         onDayPickerClick = { showDayPickerDialog = true },
                         onNowClick = {
@@ -789,6 +795,7 @@ fun FilterSection(
     onDesignationToggle: (String) -> Unit,
     onFromStopSelected: (String?) -> Unit,
     onToStopSelected: (String?) -> Unit,
+    onSwapStops: () -> Unit,
     onTimePickerClick: () -> Unit,
     onDayPickerClick: () -> Unit,
     onNowClick: () -> Unit,
@@ -871,25 +878,50 @@ fun FilterSection(
         )
 
         // ═══════════ SKĄD -> DOKĄD ═══════════
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            StopDropdown(
-                label = "Skąd",
-                selectedStop = fromStop,
-                availableStops = allStops,
-                onStopSelected = onFromStopSelected
-            )
+            // Dropdowny
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                StopDropdown(
+                    label = "Skąd",
+                    selectedStop = fromStop,
+                    availableStops = allStops,
+                    onStopSelected = onFromStopSelected
+                )
 
-            StopDropdown(
-                label = "Dokąd",
-                selectedStop = toStop,
-                availableStops = allStops,
-                onStopSelected = onToStopSelected
-            )
+                StopDropdown(
+                    label = "Dokąd",
+                    selectedStop = toStop,
+                    availableStops = allStops,
+                    onStopSelected = onToStopSelected
+                )
+            }
+
+            // Przycisk zamiany
+            IconButton(
+                onClick = onSwapStops,
+                modifier = Modifier
+                    .padding(start = 8.dp)
+                    .size(48.dp),
+                enabled = fromStop != null || toStop != null
+            ) {
+                Icon(
+                    imageVector = Icons.Default.SwapVert,
+                    contentDescription = "Zamień przystanki",
+                    tint = if (fromStop != null || toStop != null)
+                        MaterialTheme.colorScheme.primary
+                    else
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.size(28.dp)
+                )
+            }
         }
 
         HorizontalDivider(
