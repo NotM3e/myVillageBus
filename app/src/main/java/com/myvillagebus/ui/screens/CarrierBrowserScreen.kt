@@ -64,6 +64,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.myvillagebus.ui.model.CarrierUiModel
 import com.myvillagebus.ui.viewmodel.BusViewModel
+import com.myvillagebus.ui.components.CarrierCardPlaceholder
 import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -341,11 +342,14 @@ fun CarrierBrowserScreen(
 
             // Carrier List
             if (isLoading && availableCarriers.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
+                // Placeholder skeleton zamiast CircularProgressIndicator
+                LazyColumn(
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    CircularProgressIndicator()
+                    items(4) {
+                        CarrierCardPlaceholder()
+                    }
                 }
             } else {
                 val filteredCarriers = when (selectedTab) {
