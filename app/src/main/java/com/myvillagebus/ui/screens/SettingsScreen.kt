@@ -414,7 +414,7 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.height(8.dp))
 
                         Text(
-                            text = "© 2025 - Projekt niekomercyjny",
+                            text = "© 2026 - Projekt niekomercyjny",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.5f)
                         )
