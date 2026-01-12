@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import com.myvillagebus.ui.model.CarrierUiModel
 import com.myvillagebus.utils.AppConstants
+import java.time.DayOfWeek
 
 
 class BusViewModel(application: Application) : AndroidViewModel(application) {
@@ -62,6 +63,17 @@ class BusViewModel(application: Application) : AndroidViewModel(application) {
     // Przystanki do podświetlenia w szczegółach
     private val _currentHighlightedStops = MutableStateFlow<Set<String>>(emptySet())
     val currentHighlightedStops: StateFlow<Set<String>> = _currentHighlightedStops.asStateFlow()
+
+    // Wybrany dzień do wyświetlania w szczegółach
+    private val _currentSelectedDay = MutableStateFlow<DayOfWeek?>(null)
+    val currentSelectedDay: StateFlow<DayOfWeek?> = _currentSelectedDay.asStateFlow()
+
+    /**
+     * Ustawia wybrany dzień (z filtrów)
+     */
+    fun setSelectedDay(day: DayOfWeek?) {
+        _currentSelectedDay.value = day
+    }
 
     init {
         refreshSyncInfo()

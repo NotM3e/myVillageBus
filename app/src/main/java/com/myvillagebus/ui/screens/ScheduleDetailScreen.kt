@@ -28,8 +28,14 @@ import com.myvillagebus.utils.calculateMinutesUntil
 fun ScheduleDetailScreen(
     schedule: BusSchedule,
     highlightedStops: Set<String> = emptySet(),
+    selectedDay: DayOfWeek? = null,
     onBackClick: () -> Unit
 ) {
+    // Określ dzień do sprawdzenia - wybrany lub dzisiejszy
+    val dayToCheck = selectedDay ?: BusSchedule.getCurrentDayOfWeek()
+    val isSelectedDayToday = selectedDay == null || selectedDay == BusSchedule.getCurrentDayOfWeek()
+    val operatesOnSelectedDay = schedule.operatesOn(dayToCheck)
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -158,18 +164,19 @@ fun ScheduleDetailScreen(
                             style = MaterialTheme.typography.bodyMedium
                         )
 
+                        // Wyświetl wszystkie dni jako chipy
                         DayOfWeek.values().forEach { day ->
                             val isOperating = schedule.operatesOn(day)
-                            val isToday = day == BusSchedule.getCurrentDayOfWeek()
+                            val isSelectedDay = day == dayToCheck
 
                             Surface(
                                 shape = MaterialTheme.shapes.extraSmall,
                                 color = when {
-                                    isOperating && isToday -> MaterialTheme.colorScheme.primary
+                                    isOperating && isSelectedDay -> MaterialTheme.colorScheme.primary
                                     isOperating -> MaterialTheme.colorScheme.secondaryContainer
                                     else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
                                 },
-                                border = if (isToday) {
+                                border = if (isSelectedDay) {
                                     BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
                                 } else null
                             ) {
@@ -177,7 +184,7 @@ fun ScheduleDetailScreen(
                                     text = BusSchedule.getDayAbbreviation(day).take(2),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = when {
-                                        isOperating && isToday -> MaterialTheme.colorScheme.onPrimary
+                                        isOperating && isSelectedDay -> MaterialTheme.colorScheme.onPrimary
                                         isOperating -> MaterialTheme.colorScheme.onSecondaryContainer
                                         else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                     },
@@ -186,15 +193,19 @@ fun ScheduleDetailScreen(
                             }
                         }
 
-                        // Badge "Dziś"
-                        if (schedule.operatesToday()) {
+                        // Badge - dynamiczny tekst
+                        if (operatesOnSelectedDay) {
                             Spacer(modifier = Modifier.width(4.dp))
                             Surface(
                                 shape = MaterialTheme.shapes.small,
                                 color = MaterialTheme.colorScheme.primary
                             ) {
                                 Text(
-                                    text = "Dziś ✓",
+                                    text = if (isSelectedDayToday) {
+                                        "Dziś ✓"
+                                    } else {
+                                        "${BusSchedule.getDayAbbreviation(dayToCheck)} ✓"
+                                    },
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onPrimary,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)

@@ -114,6 +114,7 @@ fun NavGraph(
                 ScheduleDetailScreen(
                     schedule = it,
                     highlightedStops = viewModel.currentHighlightedStops.value,
+                    selectedDay = viewModel.currentSelectedDay.value,
                     onBackClick = safePopBackStack
                 )
             }

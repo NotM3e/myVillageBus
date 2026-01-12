@@ -530,6 +530,7 @@ fun ScheduleListScreen(
                                 highlightedStops = setOfNotNull(fromStop, toStop),
                                 onClick = {
                                     viewModel.setHighlightedStops(fromStop, toStop)
+                                    viewModel.setSelectedDay(selectedDay)
                                     onScheduleClick(schedule)
                                 }
                             )
